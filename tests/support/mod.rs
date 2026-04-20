@@ -1,3 +1,5 @@
+#![allow(dead_code)] // Shared across test binaries; not every binary uses everything.
+
 use std::collections::hash_map::DefaultHasher;
 use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
