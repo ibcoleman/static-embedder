@@ -1,0 +1,27 @@
+{
+  "name": "static-embedder",
+  "image": "mcr.microsoft.com/devcontainers/rust:1-bookworm",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
+  "forwardPorts": [8080],
+  "portsAttributes": {
+    "8080": {
+      "label": "static-embedder",
+      "onAutoForward": "notify"
+    }
+  },
+  "remoteEnv": {
+    "DATABASE_URL": "postgres://embedder:embedder@localhost:5432/embeddings",
+    "RUST_LOG": "info"
+  },
+  "postCreateCommand": "docker compose up -d && cargo fetch",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  }
+}
