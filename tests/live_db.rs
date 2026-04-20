@@ -5,7 +5,7 @@
 //!         cargo test --test live_db -- --ignored
 //!
 //! Exercises the real `PgVectorRepository` against pgvector: migration,
-//! VECTOR(384) round-trip, HNSW-indexed cosine search. Uses `FakeEmbedder`
+//! VECTOR round-trip, HNSW-indexed cosine search. Uses `FakeEmbedder`
 //! so no HuggingFace download is required.
 
 mod support;

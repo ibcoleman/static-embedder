@@ -1,7 +1,7 @@
 use serde::Serialize;
 use uuid::Uuid;
 
-pub const EMBEDDING_DIM: usize = 384;
+pub const EMBEDDING_DIM: usize = 512;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Hit {

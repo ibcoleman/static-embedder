@@ -9,7 +9,7 @@ use static_embedder::adapters::{Model2VecEmbedder, PgVectorRepository};
 use static_embedder::http::{router, AppState};
 use static_embedder::ports::{EmbeddingPort, VectorRepository};
 
-const DEFAULT_MODEL: &str = "sentence-transformers/static-retrieval-mrl-en-v1";
+const DEFAULT_MODEL: &str = "minishlab/potion-retrieval-32M";
 const DEFAULT_BIND: &str = "0.0.0.0:8080";
 
 #[tokio::main]
