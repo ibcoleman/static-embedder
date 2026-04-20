@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Static Embedder</title>
+  <style>
+    :root { color-scheme: light dark; }
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 3rem;
+      line-height: 1.45;
+    }
+    h1 { font-size: 1.25rem; margin: 0 0 0.25rem; }
+    h2 { font-size: 1rem; margin: 1.5rem 0 0.5rem; }
+    p.hint { color: #666; margin: 0 0 1rem; }
+    textarea, input, button {
+      font: inherit;
+      width: 100%;
+      padding: 0.6rem;
+      border: 1px solid #888;
+      border-radius: 6px;
+      background: transparent;
+      color: inherit;
+    }
+    textarea { resize: vertical; min-height: 9rem; }
+    button {
+      margin-top: 0.5rem;
+      background: #2563eb;
+      color: white;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:disabled { opacity: 0.5; cursor: wait; }
+    .row { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
+    .row input { flex: 1; }
+    .row button { width: auto; margin: 0; padding: 0.6rem 1rem; }
+    .hit {
+      padding: 0.6rem 0.75rem;
+      border: 1px solid #8884;
+      border-radius: 6px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: baseline;
+    }
+    .hit .text { flex: 1; }
+    .score {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.8rem;
+      color: #666;
+      white-space: nowrap;
+    }
+    .status { font-size: 0.85rem; color: #666; margin-top: 0.5rem; min-height: 1.2em; }
+    .error { color: #dc2626; }
+  </style>
+</head>
+<body>
+  <h1>Static Embedder</h1>
+  <p class="hint">Paste a few short paragraphs (blank line between each), hit <em>Index</em>, then search by meaning.</p>
+
+  <h2>1. Index documents</h2>
+  <textarea id="docs" placeholder="Rust makes concurrency safe via ownership and borrow checking.
+
+Bananas are a tropical fruit high in potassium and fibre.
+
+Tokio is an asynchronous runtime powering much of the Rust ecosystem.
+
+The M4 chip from Apple uses a 3nm process and a unified memory architecture.
+
+Cosine similarity measures the angle between two vectors in high-dimensional space."></textarea>
+  <button id="index-btn">Index</button>
+  <div class="status" id="index-status"></div>
+
+  <h2>2. Search</h2>
+  <div class="row">
+    <input id="query" placeholder="concurrent programming in systems languages">
+    <button id="search-btn">Search</button>
+  </div>
+  <div class="status" id="search-status"></div>
+  <div id="results"></div>
+
+<script>
+  const docsEl = document.getElementById('docs');
+  const queryEl = document.getElementById('query');
+  const indexBtn = document.getElementById('index-btn');
+  const searchBtn = document.getElementById('search-btn');
+  const indexStatus = document.getElementById('index-status');
+  const searchStatus = document.getElementById('search-status');
+  const results = document.getElementById('results');
+
+  async function postJSON(path, body) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: {'content-type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(data.error || 'HTTP ' + r.status);
+    return data;
+  }
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>"']/g, c => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[c]));
+  }
+
+  indexBtn.addEventListener('click', async () => {
+    const blocks = docsEl.value.split(/\n\s*\n/).map(s => s.trim()).filter(Boolean);
+    if (!blocks.length) {
+      indexStatus.innerHTML = '<span class="error">No documents to index.</span>';
+      return;
+    }
+    indexBtn.disabled = true;
+    let ok = 0;
+    indexStatus.textContent = 'Indexing 0 / ' + blocks.length + '...';
+    for (const text of blocks) {
+      try {
+        await postJSON('/index', { text });
+        ok++;
+        indexStatus.textContent = 'Indexing ' + ok + ' / ' + blocks.length + '...';
+      } catch (e) {
+        indexStatus.innerHTML = '<span class="error">Failed at #' + (ok + 1) + ': ' + escapeHtml(e.message) + '</span>';
+        indexBtn.disabled = false;
+        return;
+      }
+    }
+    indexStatus.textContent = 'Indexed ' + ok + ' doc(s).';
+    indexBtn.disabled = false;
+  });
+
+  async function runSearch() {
+    const query = queryEl.value.trim();
+    if (!query) {
+      searchStatus.innerHTML = '<span class="error">Enter a query.</span>';
+      return;
+    }
+    searchBtn.disabled = true;
+    searchStatus.textContent = 'Searching...';
+    results.innerHTML = '';
+    try {
+      const { hits } = await postJSON('/search', { query, k: 10 });
+      searchStatus.textContent = hits.length + ' hit(s).';
+      results.innerHTML = hits.map(h =>
+        '<div class="hit"><span class="text">' + escapeHtml(h.text) +
+        '</span><span class="score">' + h.score.toFixed(3) + '</span></div>'
+      ).join('');
+    } catch (e) {
+      searchStatus.innerHTML = '<span class="error">' + escapeHtml(e.message) + '</span>';
+    }
+    searchBtn.disabled = false;
+  }
+
+  searchBtn.addEventListener('click', runSearch);
+  queryEl.addEventListener('keydown', e => { if (e.key === 'Enter') runSearch(); });
+</script>
+</body>
+</html>
