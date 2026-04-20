@@ -1,8 +1,8 @@
 # static-embedder
 
-A small Rust semantic-search service built around Tom Aarsen's static embedding
-model (`sentence-transformers/static-retrieval-mrl-en-v1`). Text in → 384-dim
-vector out → stored and searched via Postgres + pgvector.
+A small Rust semantic-search service built around MinishLab's native
+Model2Vec retrieval model (`minishlab/potion-retrieval-32M`). Text in →
+512-dim vector out → stored and searched via Postgres + pgvector.
 
 Hexagonal architecture: `EmbeddingPort` and `VectorRepository` as traits, wired
 in `main()`. Adapters today: `Model2VecEmbedder` (via `model2vec-rs`) and
@@ -28,7 +28,7 @@ in `main()`. Adapters today: `Model2VecEmbedder` (via `model2vec-rs`) and
 |--------|-----------|--------------------------------------|-----------------------------------------------|
 | GET    | `/`       | —                                    | Demo HTML page                                |
 | GET    | `/healthz`| —                                    | `ok`                                          |
-| POST   | `/embed`  | `{"text": "..."}`                    | `{"vector": [f32; 384]}`                      |
+| POST   | `/embed`  | `{"text": "..."}`                    | `{"vector": [f32; 512]}`                      |
 | POST   | `/index`  | `{"text": "..."}`                    | `{"id": "uuid"}` (embeds + inserts)           |
 | POST   | `/search` | `{"query": "...", "k": 10}`          | `{"hits": [{"id","text","score"}, ...]}`      |
 

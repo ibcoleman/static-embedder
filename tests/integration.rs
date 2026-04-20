@@ -51,11 +51,11 @@ async fn healthz_returns_ok() {
 }
 
 #[tokio::test]
-async fn embed_returns_384_dim_vector() {
+async fn embed_returns_512_dim_vector() {
     let (status, body) = post_json(&app(), "/embed", json!({ "text": "hello world" })).await;
     assert_eq!(status, StatusCode::OK);
     let vector = body["vector"].as_array().expect("vector array");
-    assert_eq!(vector.len(), 384);
+    assert_eq!(vector.len(), static_embedder::domain::EMBEDDING_DIM);
 }
 
 #[tokio::test]
