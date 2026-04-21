@@ -13,7 +13,8 @@
   },
   "remoteEnv": {
     "DATABASE_URL": "postgres://embedder:embedder@localhost:5432/embeddings",
-    "RUST_LOG": "info"
+    "RUST_LOG": "info",
+    "ENABLE_LSP_TOOL": "1"
   },
   "postCreateCommand": "docker compose up -d && cargo fetch",
   "customizations": {

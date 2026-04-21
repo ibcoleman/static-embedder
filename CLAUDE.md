@@ -15,13 +15,13 @@ every rule is enforced today. Apply rules according to this table:
 | Sealed `enum` domain errors via `thiserror` | **Enforced** | `EmbedError`, `RepoError`, `ApiError` |
 | Newtype-wrap primitives with domain meaning | **Enforced (partial)** | `DocId(Uuid)` in place; extend as new types appear |
 | Property-based tests for non-trivial logic | **Enforced (seed)** | `tests/properties.rs`. Add a property alongside any new domain logic |
-| Mutation testing in CI | **Adopt next** | `cargo-mutants` workflow nightly; track mutation score as first-class metric |
+| Mutation testing in CI | **Enforced** | `.github/workflows/mutants.yml` runs `cargo-mutants` nightly. Baseline score recorded in `ROADMAP.md` after first run. |
 | Build via Bazel (`rules_rust` + `crate_universe`) | **Phase 3** | See `ROADMAP.md` |
 | Local orchestration via Tilt + local k8s | **Phase 3** | Today: `docker compose up -d` |
 | Single `just dev-sync` path, no hot reload | **Phase 3** | Today: `just dev` wraps `cargo run` honestly; do not add hot-reload flavours |
 | No `cargo run` in docs | **Phase 3** | Today: `cargo run` is the documented inner loop |
 | Pedantic TypeScript (strict, `neverthrow`, `type-fest`) | **Not applicable yet** | Frontend is vanilla JS embedded in the binary. Applies when a real TS codebase appears |
-| LSP plugin integration | **Adopt next** | Wire `ENABLE_LSP_TOOL` + `rust-analyzer` plugin; capture in `just doctor` |
+| LSP plugin integration | **Enforced (env)** | Devcontainer sets `ENABLE_LSP_TOOL=1` and ships `rust-analyzer` on PATH. `just doctor` verifies both. The Claude Code plugin install is still a per-user action — see "LSP / agent tooling" below. |
 
 Agents: when a request would require a rule marked **Phase 3**, do not
 improvise — surface the tension and ask.

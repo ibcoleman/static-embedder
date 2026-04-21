@@ -17,15 +17,35 @@ system.
 - [x] `Justfile` covering `dev`, `check`, `test-live`, `reset-db`, `doctor`.
 - [x] `cargo-mutants` nightly workflow uploading `mutants.out/` as an
   artifact. Track the baseline mutation score.
-- [ ] LSP plugin integration: add `ENABLE_LSP_TOOL=1` to the devcontainer
-  `remoteEnv`, confirm `rust-analyzer` is on PATH, update `just doctor` to
-  verify both.
-- [ ] Extend property coverage as domain types grow. Concrete next property:
-  "any text re-embedded produces the same vector" (determinism check for
-  `Model2VecEmbedder`).
+- [x] LSP plugin integration: `ENABLE_LSP_TOOL=1` in devcontainer
+  `remoteEnv`; `rust-analyzer` ships on PATH via the Microsoft Rust
+  devcontainer image; `just doctor` verifies both. The per-user Claude
+  Code plugin install is documented in `CLAUDE.md` > LSP section.
+- [x] `Model2VecEmbedder` determinism property in
+  `tests/properties_live.rs`. Gated `#[ignore]` because it downloads
+  weights; run via `cargo test --test properties_live -- --ignored`.
 
-**Phase 1 exit**: nightly mutation baseline committed to `ROADMAP.md`; agents
-can rely on `just doctor` to diagnose environment drift.
+**Phase 1 closeout (one open item)**
+
+The first scheduled `cargo-mutants` run produces our baseline mutation
+score. After it completes, paste the headline numbers (mutants total,
+caught, missed, timeout, mutation score percentage) into the section
+below. After that, Phase 1 is closed.
+
+```
+Mutation baseline (TODO — fill in after first nightly run)
+  Run date:
+  Caught:
+  Missed:
+  Timeout / unviable:
+  Mutation score:
+```
+
+If the baseline is below ~70%, the immediate next work is plugging the
+gaps revealed by `mutants.out/missed.txt` rather than starting Phase 2.
+
+**Phase 1 exit**: mutation baseline pasted above; agents can rely on
+`just doctor` to diagnose environment drift.
 
 ## Phase 2 — Persistent staging target
 
