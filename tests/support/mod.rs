@@ -5,9 +5,8 @@ use std::hash::{Hash, Hasher};
 use std::sync::Mutex;
 
 use async_trait::async_trait;
-use uuid::Uuid;
 
-use static_embedder::domain::{Hit, EMBEDDING_DIM};
+use static_embedder::domain::{DocId, Hit, EMBEDDING_DIM};
 use static_embedder::ports::{EmbedError, EmbeddingPort, RepoError, VectorRepository};
 
 /// Deterministic bag-of-words fake embedder.
@@ -48,7 +47,7 @@ impl EmbeddingPort for FakeEmbedder {
 }
 
 struct Row {
-    id: Uuid,
+    id: DocId,
     text: String,
     vec: Vec<f32>,
 }
@@ -82,7 +81,7 @@ fn cosine(a: &[f32], b: &[f32]) -> f32 {
 
 #[async_trait]
 impl VectorRepository for InMemoryRepository {
-    async fn insert(&self, id: Uuid, text: &str, vec: &[f32]) -> Result<(), RepoError> {
+    async fn insert(&self, id: DocId, text: &str, vec: &[f32]) -> Result<(), RepoError> {
         let mut rows = self
             .rows
             .lock()
