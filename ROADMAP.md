@@ -33,12 +33,20 @@ Phase 1 is now closed.
 ```
 Mutation baseline
   Run date:        2026-04-21
+  cargo-mutants:   27.0.0
   Pre-fix run:     5 caught, 16 missed  (23.8%)
                    — exposed 6 real gaps (body-content assertions on
                      healthz/frontend, upper-bound k check in search)
                      and 10 out-of-scope mutants (live-only adapters,
                      main/shutdown wiring).
-  Post-fix run:    0 missed, 0 timeout  (100% of in-scope mutants caught)
+  Post-fix run:    28 total mutants generated
+                   11 caught   (all viable mutants killed)
+                    0 missed
+                    0 timeout
+                   17 unviable (did not compile; e.g. Default::default()
+                                substitutions where the return type has
+                                no Default impl)
+                   Mutation score: 11 / (11 + 0 + 0) = 100% viable.
   In-scope files:  src/domain/, src/ports/, src/http/, src/adapters/*
                    except model2vec_embedder.rs and pg_vector_repository.rs
   Out of scope:    src/main.rs (wiring), the two live-only adapters
