@@ -69,28 +69,38 @@ near-stable score even as the code grows.
 Goal: a URL that's always up, not dependent on a running Codespace. This is
 orthogonal to the build-system migration and can land before Phase 3.
 
-Candidate stacks (pick one, then execute):
+**Chosen stack: Fly.io + Neon Postgres.** Neon's free tier supports
+pgvector and is fully web-UI driven (no CLI needed for the DB); Fly hosts
+the app container. Fly Postgres (their native offering) was the alternative
+and is still viable if we want to collapse to a single vendor later. Render
+was rejected because its free Postgres tier doesn't include pgvector.
 
-- **Fly.io + managed Fly Postgres.** pgvector extension available; deploy
-  flow via `superfly/flyctl-actions` on push to `main`. Free tier covers a
-  1-VM demo.
-- **Fly.io + Neon Postgres.** Same app host, external managed Postgres.
-  Cleaner iPad-only setup — Neon is entirely web-UI and supports pgvector on
-  the free tier.
-- **Render + managed Postgres.** Rejected for now: pgvector isn't available
-  on Render's free Postgres tier.
+### Part 1 — Deployable artifact + first manual deploy
 
-Work items (regardless of choice):
+- [x] `Dockerfile` — multi-stage (rust builder → model downloader → distroless
+  runtime with model files baked in, `gcr.io/distroless/cc-debian12:nonroot`).
+- [x] `.dockerignore` — keeps the build context tight (skips `target/`, docs,
+  dev tooling).
+- [x] `fly.toml` — minimal template with `primary_region = "iad"`, a
+  `/healthz` check, and shared-1x / 512 MB VM size.
+- [x] README "Deploy to Fly.io + Neon" section — one-time setup (Neon
+  provisioning + `CREATE EXTENSION vector`, `flyctl auth login`, secret,
+  `flyctl deploy`) and smoke test.
+- [ ] **Execute the one-time setup** (user action — CLI from Codespace).
+- [ ] **Capture the live URL** in README once the first deploy is green.
 
-- [ ] `Dockerfile` (multi-stage: `rust:slim` → `distroless/cc`).
-- [ ] `fly.toml` (or the chosen platform's equivalent).
-- [ ] `.github/workflows/deploy.yml` triggered on push to `main` after
-  `ci` passes.
-- [ ] Document the one-time manual steps (provisioning, `CREATE EXTENSION
-  vector`, `FLY_API_TOKEN` secret) in `README.md`.
+**Part 1 exit**: a shareable `https://<app>.fly.dev/` URL renders the demo UI
+and serves search against Neon. Redeploys are still manual `flyctl deploy`.
 
-**Phase 2 exit**: `main` deploys automatically; a shareable URL renders the
-demo against a persistent Postgres.
+### Part 2 — Automate redeploys
+
+- [ ] `.github/workflows/deploy.yml` — `superfly/flyctl-actions@master`,
+  triggered on push to `main` after the `ci` job passes.
+- [ ] `FLY_API_TOKEN` repo secret (generated via `flyctl tokens create deploy`).
+- [ ] README update noting that merging to `main` now redeploys automatically.
+
+**Phase 2 exit**: `main` deploys automatically; the shareable URL stays in
+sync with `main` without manual intervention.
 
 ## Phase 3 — Bazel, Tilt, k8s, `just dev-sync`
 

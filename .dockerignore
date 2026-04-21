@@ -1,0 +1,15 @@
+# Keep the build context tiny — nothing below is needed to compile the binary.
+target/
+.git/
+.github/
+.devcontainer/
+.claude/
+.sqlx/
+docs/
+ROADMAP.md
+README.md
+CLAUDE.md
+Justfile
+docker-compose.yml
+*.log
+.DS_Store
