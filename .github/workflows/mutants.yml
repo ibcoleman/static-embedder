@@ -25,10 +25,26 @@ jobs:
         run: cargo install cargo-mutants --locked
 
       - name: Run cargo-mutants
-        # Skip live_db because it requires a Postgres; keep mutation
-        # testing focused on pure-Rust domain + adapter logic that the
-        # offline suite can exercise.
-        run: cargo mutants --no-shuffle -j 2 --exclude tests/live_db.rs
+        # Mutation testing only makes sense where the non-ignored test
+        # suite can actually observe the mutation. We exclude files
+        # whose coverage lives behind `#[ignore]` or that are pure
+        # wiring/glue:
+        #
+        # - src/main.rs: process wiring. The only honest coverage is
+        #   spinning up the real server; not a unit-test shape.
+        # - src/adapters/model2vec_embedder.rs: exercised by the
+        #   ignored `properties_live` test (downloads HF weights).
+        #   Re-enable once mutants runs against a model cache.
+        # - src/adapters/pg_vector_repository.rs: exercised by the
+        #   ignored `live_db` test (needs running Postgres).
+        #   Re-enable once mutants runs with a service container.
+        # - tests/live_db.rs: same reason.
+        run: |
+          cargo mutants --no-shuffle -j 2 \
+            --exclude src/main.rs \
+            --exclude src/adapters/model2vec_embedder.rs \
+            --exclude src/adapters/pg_vector_repository.rs \
+            --exclude tests/live_db.rs
 
       - name: Upload mutants.out
         if: always()

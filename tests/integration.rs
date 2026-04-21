@@ -39,15 +39,34 @@ async fn post_json(app: &axum::Router, path: &str, body: Value) -> (StatusCode, 
     (status, value)
 }
 
-#[tokio::test]
-async fn healthz_returns_ok() {
+async fn get_body(app: &axum::Router, path: &str) -> (StatusCode, Vec<u8>) {
     let req = Request::builder()
         .method("GET")
-        .uri("/healthz")
+        .uri(path)
         .body(Body::empty())
         .expect("build request");
-    let response = app().oneshot(req).await.expect("service call");
-    assert_eq!(response.status(), StatusCode::OK);
+    let response = app.clone().oneshot(req).await.expect("service call");
+    let status = response.status();
+    let bytes = to_bytes(response.into_body(), 1 << 20)
+        .await
+        .expect("read body");
+    (status, bytes.to_vec())
+}
+
+#[tokio::test]
+async fn healthz_returns_ok() {
+    let (status, body) = get_body(&app(), "/healthz").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, b"ok");
+}
+
+#[tokio::test]
+async fn frontend_serves_demo_page() {
+    let (status, body) = get_body(&app(), "/").await;
+    assert_eq!(status, StatusCode::OK);
+    let html = std::str::from_utf8(&body).expect("utf-8 html");
+    assert!(html.contains("Static Embedder"), "page missing title");
+    assert!(html.contains("<textarea"), "page missing textarea");
 }
 
 #[tokio::test]
@@ -98,5 +117,21 @@ async fn index_then_search_ranks_relevant_doc_first() {
 #[tokio::test]
 async fn search_rejects_k_zero() {
     let (status, _) = post_json(&app(), "/search", json!({ "query": "hi", "k": 0 })).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+}
+
+/// Boundary: MAX_K (100) is inclusive — should succeed.
+/// Guards against a `>` → `>=` mutation in the upper-bound check.
+#[tokio::test]
+async fn search_accepts_k_equal_max_k() {
+    let (status, _) = post_json(&app(), "/search", json!({ "query": "hi", "k": 100 })).await;
+    assert_eq!(status, StatusCode::OK);
+}
+
+/// Boundary: MAX_K + 1 (101) must be rejected.
+/// Guards against a `>` → `==` mutation (which would only reject k == MAX_K).
+#[tokio::test]
+async fn search_rejects_k_above_max_k() {
+    let (status, _) = post_json(&app(), "/search", json!({ "query": "hi", "k": 101 })).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 }
