@@ -27,25 +27,34 @@ system.
 
 **Phase 1 closeout (one open item)**
 
-The first scheduled `cargo-mutants` run produces our baseline mutation
-score. After it completes, paste the headline numbers (mutants total,
-caught, missed, timeout, mutation score percentage) into the section
-below. After that, Phase 1 is closed.
+The first scheduled `cargo-mutants` run produced the baseline below.
+Phase 1 is now closed.
 
 ```
-Mutation baseline (TODO — fill in after first nightly run)
-  Run date:
-  Caught:
-  Missed:
-  Timeout / unviable:
-  Mutation score:
+Mutation baseline
+  Run date:        2026-04-21
+  Pre-fix run:     5 caught, 16 missed  (23.8%)
+                   — exposed 6 real gaps (body-content assertions on
+                     healthz/frontend, upper-bound k check in search)
+                     and 10 out-of-scope mutants (live-only adapters,
+                     main/shutdown wiring).
+  Post-fix run:    0 missed, 0 timeout  (100% of in-scope mutants caught)
+  In-scope files:  src/domain/, src/ports/, src/http/, src/adapters/*
+                   except model2vec_embedder.rs and pg_vector_repository.rs
+  Out of scope:    src/main.rs (wiring), the two live-only adapters
+                   (coverage lives behind #[ignore]). Rationale and
+                   re-enable conditions live in .github/workflows/mutants.yml.
+  Policy:          Target ≥80% on in-scope code (CLAUDE.md). Alert on
+                   any drop >5 points in a single commit. Chase deltas,
+                   not the absolute number; treat equivalent mutants as
+                   exclusions with a comment, not tests to bolt on.
 ```
 
-If the baseline is below ~70%, the immediate next work is plugging the
-gaps revealed by `mutants.out/missed.txt` rather than starting Phase 2.
-
-**Phase 1 exit**: mutation baseline pasted above; agents can rely on
-`just doctor` to diagnose environment drift.
+The policy in the last block matters: 100% today is a side effect of a
+small surface area, not a target to defend. As domain logic grows we
+expect the raw score to drift; what we care about is that *new code
+arrives with tests that kill its mutants*, which will show up as
+near-stable score even as the code grows.
 
 ## Phase 2 — Persistent staging target
 
