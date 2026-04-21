@@ -3,7 +3,7 @@ use pgvector::Vector;
 use sqlx::PgPool;
 use uuid::Uuid;
 
-use crate::domain::Hit;
+use crate::domain::{DocId, Hit};
 use crate::ports::{RepoError, VectorRepository};
 
 pub struct PgVectorRepository {
@@ -25,10 +25,10 @@ impl PgVectorRepository {
 
 #[async_trait]
 impl VectorRepository for PgVectorRepository {
-    async fn insert(&self, id: Uuid, text: &str, vec: &[f32]) -> Result<(), RepoError> {
+    async fn insert(&self, id: DocId, text: &str, vec: &[f32]) -> Result<(), RepoError> {
         let embedding = Vector::from(vec.to_vec());
         sqlx::query("INSERT INTO embeddings (id, text, embedding) VALUES ($1, $2, $3)")
-            .bind(id)
+            .bind(id.0)
             .bind(text)
             .bind(embedding)
             .execute(&self.pool)
@@ -57,7 +57,7 @@ impl VectorRepository for PgVectorRepository {
         Ok(rows
             .into_iter()
             .map(|(id, text, score)| Hit {
-                id,
+                id: DocId(id),
                 text,
                 score: score as f32,
             })

@@ -1,0 +1,38 @@
+name: mutants
+
+# Mutation testing via cargo-mutants. Slow by nature; scheduled nightly
+# plus manual dispatch. A drop in mutation score is a regression even
+# when example-based tests stay green (see CLAUDE.md > Testing).
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # 04:00 UTC nightly
+  workflow_dispatch:
+
+jobs:
+  mutants:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-mutants
+        run: cargo install cargo-mutants --locked
+
+      - name: Run cargo-mutants
+        # Skip live_db because it requires a Postgres; keep mutation
+        # testing focused on pure-Rust domain + adapter logic that the
+        # offline suite can exercise.
+        run: cargo mutants --no-shuffle -j 2 --exclude tests/live_db.rs
+
+      - name: Upload mutants.out
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutants-out
+          path: mutants.out/

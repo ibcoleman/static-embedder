@@ -11,9 +11,9 @@
 mod support;
 
 use sqlx::postgres::PgPoolOptions;
-use uuid::Uuid;
 
 use static_embedder::adapters::PgVectorRepository;
+use static_embedder::domain::DocId;
 use static_embedder::ports::{EmbeddingPort, VectorRepository};
 use support::FakeEmbedder;
 
@@ -54,9 +54,7 @@ async fn live_db_index_and_search() {
     ];
     for text in docs {
         let vec = embedder.embed(text).await.expect("embed");
-        repo.insert(Uuid::new_v4(), text, &vec)
-            .await
-            .expect("insert");
+        repo.insert(DocId::new(), text, &vec).await.expect("insert");
     }
 
     let query = embedder
