@@ -2,7 +2,8 @@
   "name": "static-embedder",
   "image": "mcr.microsoft.com/devcontainers/rust:1-bookworm",
   "features": {
-    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/guiyomh/features/just:0": {}
   },
   "forwardPorts": [8080],
   "portsAttributes": {

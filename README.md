@@ -52,7 +52,64 @@ cargo test --test live_db -- --ignored             # against docker-compose pg
 CI (`.github/workflows/ci.yml`) runs fmt, clippy, the offline suite, and the
 live-DB smoke test against a pgvector service container on every PR.
 
-## Staging / production
+## Deploy to Fly.io + Neon
 
-Codespaces is the dev loop; it is not persistent. A persistent deployment
-target (Fly.io + managed pgvector, or Render + Neon) is a separate follow-up.
+Codespaces is the dev loop; it is not persistent. The staging target is
+**Fly.io** (app host) + **Neon** (managed Postgres with pgvector). Both have
+free tiers and are fully web-UI driven for the infra pieces. One-time setup
+below; subsequent deploys are `flyctl deploy` until Part 2 wires up CI-driven
+redeploys (see `ROADMAP.md`).
+
+### One-time setup
+
+1. **Create a Neon project** at <https://neon.tech>. Any region is fine; the
+   free tier supports pgvector out of the box. Note the `postgresql://...`
+   connection string from the dashboard.
+2. **Enable pgvector** in Neon's web SQL editor:
+   ```sql
+   CREATE EXTENSION IF NOT EXISTS vector;
+   ```
+3. **Install `flyctl`** in the Codespace terminal:
+   ```bash
+   curl -L https://fly.io/install.sh | sh
+   export PATH="$HOME/.fly/bin:$PATH"
+   ```
+4. **Log in to Fly** (opens a browser tab to authenticate):
+   ```bash
+   flyctl auth login
+   ```
+5. **Provision the app** — either accept `fly.toml` as-committed and pick a
+   unique app name:
+   ```bash
+   flyctl apps create static-embedder-<your-suffix>
+   # then edit `app = "..."` in fly.toml to match
+   ```
+   …or regenerate `fly.toml` entirely via `flyctl launch --dockerfile --no-deploy`.
+6. **Set the database secret** (paste the Neon connection string):
+   ```bash
+   flyctl secrets set DATABASE_URL="postgresql://USER:PASS@HOST/DB?sslmode=require"
+   ```
+7. **Deploy**:
+   ```bash
+   flyctl deploy
+   ```
+   First deploy pulls the model weights from HuggingFace during the build
+   step (~8 MB) and bakes them into the image. Subsequent deploys reuse the
+   cached layer.
+8. **Smoke test**:
+   ```bash
+   flyctl status                           # grabs the hostname
+   curl https://<app>.fly.dev/healthz      # -> ok
+   open https://<app>.fly.dev/             # demo UI
+   ```
+
+### Redeploying
+
+Manual until Part 2 lands:
+
+```bash
+flyctl deploy
+```
+
+Part 2 adds a GitHub Actions workflow that runs `flyctl deploy` on every
+push to `main` after CI passes, gated on a `FLY_API_TOKEN` repo secret.

@@ -1,0 +1,36 @@
+# Fly.io app configuration.
+#
+# Replace `app` below with whatever `flyctl launch` generated for you, or
+# regenerate this file with `flyctl launch --dockerfile --no-deploy` (which
+# will prompt for name / region / VM size). `primary_region` should be
+# geographically close to your Neon Postgres region — cross-region latency
+# between app and DB dominates request time.
+
+app = "static-embedder"
+primary_region = "iad"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  processes = ["app"]
+
+  [http_service.checks]
+    [[http_service.checks]]
+      grace_period = "10s"
+      interval = "30s"
+      method = "get"
+      path = "/healthz"
+      timeout = "5s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"
+
+# No [mounts] — the binary is stateless and persistence lives in Neon.
+# DATABASE_URL must be set via `flyctl secrets set DATABASE_URL=...` once.
