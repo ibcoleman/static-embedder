@@ -20,13 +20,12 @@ primary_region = "iad"
   min_machines_running = 0
   processes = ["app"]
 
-  [http_service.checks]
-    [[http_service.checks]]
-      grace_period = "10s"
-      interval = "30s"
-      method = "get"
-      path = "/healthz"
-      timeout = "5s"
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "30s"
+    method = "get"
+    path = "/healthz"
+    timeout = "5s"
 
 [[vm]]
   size = "shared-cpu-1x"
