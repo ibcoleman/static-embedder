@@ -38,7 +38,7 @@ Same as the Rust flavour:
 
 ## Dev loop
 
-**Everything runs through `just dev-sync`.** This command drives a full
+**Everything runs through `just dev`.** This command drives a full
 local k8s deploy via Bazel + Tilt and is the only supported inner loop.
 
 - Do **not** introduce `./gradlew bootRun`, Spring DevTools hot reload,
@@ -231,7 +231,7 @@ Same spirit as the TS list in the Rust manifesto:
 
 **Do:**
 
-- Route every build/deploy through `just dev-sync`.
+- Route every build/deploy through `just dev`.
 - Model every fallible operation as `Either<E, T>` (Vavr) or
   `Result<E, T>` (sealed) — pick one per project and stick to it.
 - Use `record` newtypes for IDs, money, timestamps with meaning, and any

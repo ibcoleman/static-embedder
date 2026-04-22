@@ -1,8 +1,8 @@
 # Command runner entry points. `just --list` shows this, too.
 #
-# Phase 3 will collapse `dev` into `dev-sync` (Bazel + Tilt into local k8s)
-# and retire the Cargo / docker-compose paths. Until then, these are the
-# honest documented inner loop.
+# Phase 3 replaces this `dev` (cargo run + docker-compose Postgres) with a
+# Bazel + Tilt + local k8s implementation. Same name, different engine.
+# Until then, these are the honest documented inner loop.
 
 _default:
     @just --list

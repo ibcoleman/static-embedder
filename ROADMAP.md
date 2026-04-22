@@ -92,7 +92,7 @@ on each option before committing.
 **Re-entry conditions:** someone needs a persistent demo URL, or Phase 3
 k8s work produces manifests that want a real cloud target.
 
-## Phase 3 — Bazel, Tilt, k8s, `just dev-sync`
+## Phase 3 — Bazel, Tilt, k8s (one `just dev`)
 
 Goal: align the build system with the manifesto. This is the largest piece
 and should be treated as a dedicated milestone.
@@ -127,17 +127,18 @@ Sub-phases:
 - [ ] Extend `devcontainer.json` with a k3d (or kind) feature.
 - [ ] `k8s/` directory: Deployment, Service, Postgres StatefulSet (or
   external pgvector) manifests.
-- [ ] `just dev-sync` = `tilt up` against those manifests.
+- [ ] Replace `just dev` so it runs `tilt up` against those manifests.
+  Same name as today; Bazel + Tilt + k8s backs it instead of cargo run.
 
 ### 3c. Retire the old paths
 
 - [ ] Remove `cargo run` from `README.md` and `CLAUDE.md`'s "Dev loop"
   section.
-- [ ] Remove `just dev` (the `cargo run` wrapper); promote `just dev-sync`
-  to the sole inner-loop entry point.
+- [ ] Retire the `cargo run` implementation of `just dev`; the Tilt-driven
+  one from 3b becomes the sole inner-loop entry point under the same name.
 - [ ] Update `CLAUDE.md` Status table: move Phase 3 rows to **Enforced**.
 
-**Phase 3 exit**: a single `just dev-sync` builds + deploys to local k8s;
+**Phase 3 exit**: `just dev` builds + deploys to local k8s via Tilt;
 `CLAUDE.md` Status table has zero "Phase 3" rows remaining; the repo is
 ready to be extracted as the canonical Rust LLM-project template.
 

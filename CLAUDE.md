@@ -18,7 +18,7 @@ every rule is enforced today. Apply rules according to this table:
 | Mutation testing in CI | **Enforced** | `.github/workflows/mutants.yml` runs `cargo-mutants` nightly. Baseline score recorded in `ROADMAP.md` after first run. |
 | Build via Bazel (`rules_rust` + `crate_universe`) | **Enforced (partial)** | Phase 3a done: `bazel build //...` + `bazel test //...` are canonical; CI runs them. Local `just dev` still wraps `cargo run` — that collapses in 3c. `fmt` / `clippy` stay on Cargo. |
 | Local orchestration via Tilt + local k8s | **Phase 3** | Today: `docker compose up -d` |
-| Single `just dev-sync` path, no hot reload | **Phase 3** | Today: `just dev` wraps `cargo run` honestly; do not add hot-reload flavours |
+| Single `just dev` path, no hot reload | **Phase 3** | Today: `just dev` wraps `cargo run` honestly. Phase 3 reimplements it on Bazel + Tilt + local k8s under the same name. Do not add hot-reload flavours. |
 | No `cargo run` in docs | **Phase 3** | Today: `cargo run` is the documented inner loop |
 | Pedantic TypeScript (strict, `neverthrow`, `type-fest`) | **Not applicable yet** | Frontend is vanilla JS embedded in the binary. Applies when a real TS codebase appears |
 | LSP plugin integration | **Enforced (env)** | Devcontainer sets `ENABLE_LSP_TOOL=1` and ships `rust-analyzer` on PATH. `just doctor` verifies both. The Claude Code plugin install is still a per-user action — see "LSP / agent tooling" below. |
@@ -66,8 +66,9 @@ just doctor       # verify prerequisites are on PATH
 ```
 
 Post-3a, Bazel owns build + test; Cargo still drives fmt/clippy and the
-inner-loop `cargo run`. Phase 3c collapses the remaining `cargo run` path
-into `just dev-sync` (Bazel + Tilt into local k8s).
+inner-loop `cargo run`. Phase 3c replaces the `cargo run` implementation
+of `just dev` with a Tilt-driven one against local k8s — same target
+name, different engine.
 
 Do **not** add `cargo watch`, `tsc --watch`, or other hot-reload pathways.
 They present a state that does not match the real build and confuse both
@@ -190,8 +191,9 @@ Setup (target state — not fully wired yet):
 **Don't:**
 
 - Add hot-reload or dev-server paths (`cargo watch`, `tsc --watch`,
-  `pnpm dev`). `just dev` is the only dev-loop entry point today; `just
-  dev-sync` will be the only one in Phase 3.
+  `pnpm dev`). `just dev` is the only dev-loop entry point — today it
+  wraps `cargo run`; Phase 3 reimplements it on Bazel + Tilt + local k8s
+  under the same name. Don't add siblings.
 - `throw` in TS application code (when TS exists). Don't `unwrap()` /
   `expect()` in Rust production code.
 - Silence the type checker (`any`, non-trivial `as` casts, `// @ts-ignore`).
