@@ -29,6 +29,7 @@ rust_test(
     ],
     crate_root = "integration.rs",
     edition = "2021",
+    size = "small",
     proc_macro_deps = _SUPPORT_PROC_MACROS,
     deps = [
         "//:static_embedder",
@@ -48,6 +49,7 @@ rust_test(
     ],
     crate_root = "properties.rs",
     edition = "2021",
+    size = "small",
     proc_macro_deps = _SUPPORT_PROC_MACROS,
     deps = [
         "//:static_embedder",
@@ -64,6 +66,7 @@ rust_test(
     ],
     crate_root = "live_db.rs",
     edition = "2021",
+    size = "small",
     proc_macro_deps = _SUPPORT_PROC_MACROS,
     # `manual`: excluded from default `bazel test //...`.
     # `external`: disables caching (test touches a real DB).
@@ -83,6 +86,10 @@ rust_test(
     srcs = ["properties_live.rs"],
     crate_root = "properties_live.rs",
     edition = "2021",
+    # `medium` not `small`: first run downloads ~8 MB of model weights from
+    # HuggingFace. Cached runs are fast, but the download can exceed the
+    # `small` 60s budget on slow connections.
+    size = "medium",
     # Downloads HuggingFace model weights on first run.
     tags = [
         "external",
