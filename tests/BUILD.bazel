@@ -1,0 +1,103 @@
+"""Integration + property test targets.
+
+Offline tests (`integration`, `properties`) run under `bazel test //...`.
+Live targets (`live_db`, `properties_live`) are tagged `manual` + `external`
+so they're excluded from default test runs, and their test fns carry
+`#[ignore]` so `cargo test --test <name>` still skips them without extra
+flags. Under Bazel, invoke them with `--config=live` (see .bazelrc), which
+adds `--test_arg=--ignored` to flip the Rust test harness into
+ignored-tests-only mode.
+"""
+
+load("@rules_rust//rust:defs.bzl", "rust_test")
+
+# Shared fakes: FakeEmbedder + InMemoryRepository. Three of the four test
+# binaries declare `mod support;`, so each rule lists `support/mod.rs`
+# alongside its test root.
+_SUPPORT = "support/mod.rs"
+
+# `support/mod.rs` implements the library's traits (`EmbeddingPort`,
+# `VectorRepository`) with `#[async_trait]`, so every test that pulls it
+# in also needs the `async-trait` proc-macro.
+_SUPPORT_PROC_MACROS = ["@crates//:async-trait"]
+
+rust_test(
+    name = "integration",
+    srcs = [
+        "integration.rs",
+        _SUPPORT,
+    ],
+    crate_root = "integration.rs",
+    edition = "2021",
+    size = "small",
+    proc_macro_deps = _SUPPORT_PROC_MACROS,
+    deps = [
+        "//:static_embedder",
+        "@crates//:axum",
+        "@crates//:http-body-util",
+        "@crates//:serde_json",
+        "@crates//:tokio",
+        "@crates//:tower",
+    ],
+)
+
+rust_test(
+    name = "properties",
+    srcs = [
+        "properties.rs",
+        _SUPPORT,
+    ],
+    crate_root = "properties.rs",
+    edition = "2021",
+    size = "small",
+    proc_macro_deps = _SUPPORT_PROC_MACROS,
+    deps = [
+        "//:static_embedder",
+        "@crates//:proptest",
+        "@crates//:tokio",
+    ],
+)
+
+rust_test(
+    name = "live_db",
+    srcs = [
+        "live_db.rs",
+        _SUPPORT,
+    ],
+    crate_root = "live_db.rs",
+    edition = "2021",
+    size = "small",
+    proc_macro_deps = _SUPPORT_PROC_MACROS,
+    # `manual`: excluded from default `bazel test //...`.
+    # `external`: disables caching (test touches a real DB).
+    tags = [
+        "external",
+        "manual",
+    ],
+    deps = [
+        "//:static_embedder",
+        "@crates//:sqlx",
+        "@crates//:tokio",
+    ],
+)
+
+rust_test(
+    name = "properties_live",
+    srcs = ["properties_live.rs"],
+    crate_root = "properties_live.rs",
+    edition = "2021",
+    # `medium` not `small`: first run downloads ~8 MB of model weights from
+    # HuggingFace. Cached runs are fast, but the download can exceed the
+    # `small` 60s budget on slow connections.
+    size = "medium",
+    # Downloads HuggingFace model weights on first run.
+    tags = [
+        "external",
+        "manual",
+    ],
+    deps = [
+        "//:static_embedder",
+        "@crates//:proptest",
+        "@crates//:tokio",
+    ],
+)

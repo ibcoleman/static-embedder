@@ -16,9 +16,9 @@ every rule is enforced today. Apply rules according to this table:
 | Newtype-wrap primitives with domain meaning | **Enforced (partial)** | `DocId(Uuid)` in place; extend as new types appear |
 | Property-based tests for non-trivial logic | **Enforced (seed)** | `tests/properties.rs`. Add a property alongside any new domain logic |
 | Mutation testing in CI | **Enforced** | `.github/workflows/mutants.yml` runs `cargo-mutants` nightly. Baseline score recorded in `ROADMAP.md` after first run. |
-| Build via Bazel (`rules_rust` + `crate_universe`) | **Phase 3** | See `ROADMAP.md` |
+| Build via Bazel (`rules_rust` + `crate_universe`) | **Enforced (partial)** | Phase 3a done: `bazel build //...` + `bazel test //...` are canonical; CI runs them. Local `just dev` still wraps `cargo run` — that collapses in 3c. `fmt` / `clippy` stay on Cargo. |
 | Local orchestration via Tilt + local k8s | **Phase 3** | Today: `docker compose up -d` |
-| Single `just dev-sync` path, no hot reload | **Phase 3** | Today: `just dev` wraps `cargo run` honestly; do not add hot-reload flavours |
+| Single `just dev` path, no hot reload | **Phase 3** | Today: `just dev` wraps `cargo run` honestly. Phase 3 reimplements it on Bazel + Tilt + local k8s under the same name. Do not add hot-reload flavours. |
 | No `cargo run` in docs | **Phase 3** | Today: `cargo run` is the documented inner loop |
 | Pedantic TypeScript (strict, `neverthrow`, `type-fest`) | **Not applicable yet** | Frontend is vanilla JS embedded in the binary. Applies when a real TS codebase appears |
 | LSP plugin integration | **Enforced (env)** | Devcontainer sets `ENABLE_LSP_TOOL=1` and ships `rust-analyzer` on PATH. `just doctor` verifies both. The Claude Code plugin install is still a per-user action — see "LSP / agent tooling" below. |
@@ -45,28 +45,34 @@ improvise — surface the tension and ask.
   needs a build step.
 - **Build today:** Cargo. **Phase 3 target:** Bazel (`rules_rust` +
   `crate_universe` for Rust; `rules_js` for TS).
-- **Local orchestration today:** docker-compose in a Codespace. **Phase 3
-  target:** Tilt watching Bazel outputs, deploying into local k8s
-  (`k3d`/`kind` inside the Codespace).
+- **Local orchestration today:** docker-compose on the dev machine (WSL or
+  a GitHub Codespace; both work). **Phase 3 target:** Tilt watching Bazel
+  outputs, deploying into local k8s (`k3d`/`kind` on the same dev machine).
 - **Command runner:** `just`.
-- **Deploy target (staging):** TBD — see `ROADMAP.md` Phase 2.
+- **Deploy target (staging):** none today. An earlier Fly.io + Neon attempt
+  is deferred; see `ROADMAP.md` Phase 2.
 
 ## Dev loop (current)
 
-From the repo root inside a Codespace:
+From the repo root on your dev machine (WSL or Codespace):
 
 ```
-just dev        # docker compose up -d + cargo run
-just check      # fmt + clippy + offline tests
-just test-live  # live-DB smoke test against docker-compose Postgres
-just reset-db   # drop the pgdata volume (use when migrations change)
-just doctor     # verify prerequisites are on PATH
+just dev          # docker compose up -d + cargo run (inner loop, still on Cargo)
+just check        # cargo fmt + clippy, then `bazel test //...`
+just test-live    # `bazel test //tests:live_db --config=live` against docker-compose pg
+just bazel-repin  # regenerate crate_universe pins after editing Cargo.toml
+just reset-db     # drop the pgdata volume (use when migrations change)
+just doctor       # verify prerequisites are on PATH
 ```
+
+Post-3a, Bazel owns build + test; Cargo still drives fmt/clippy and the
+inner-loop `cargo run`. Phase 3c replaces the `cargo run` implementation
+of `just dev` with a Tilt-driven one against local k8s — same target
+name, different engine.
 
 Do **not** add `cargo watch`, `tsc --watch`, or other hot-reload pathways.
 They present a state that does not match the real build and confuse both
-humans and agents. When Phase 3 lands, `just dev` collapses into
-`just dev-sync` (Bazel + Tilt) and `cargo run` disappears from the docs.
+humans and agents.
 
 ## Rust conventions
 
@@ -79,9 +85,12 @@ humans and agents. When Phase 3 lands, `just dev` collapses into
 - **Sealed `enum`s** for exhaustive domain modelling; lean on the
   exhaustiveness checker. `thiserror` for error types in library/adapter
   code.
-- Current dep manager is Cargo. **When we move to Bazel**, third-party crates
-  will be managed through `crate_universe`: add deps to `Cargo.toml`, regen,
-  never hand-write `BUILD` files for external crates.
+- Cargo.toml is the source of truth for third-party crates. Bazel reads it
+  via `crate_universe` in `from_cargo` mode — never hand-write `BUILD`
+  files for external crates. After editing Cargo.toml, repin with:
+  `CARGO_BAZEL_REPIN=1 bazel fetch @crates//...`
+  (or `just bazel-repin`). Both `Cargo.lock` and `MODULE.bazel.lock` are
+  committed.
 
 ## TypeScript conventions
 
@@ -153,8 +162,9 @@ exposed to the agent via Claude Code's LSP integration.
 
 Setup (target state — not fully wired yet):
 
-1. `ENABLE_LSP_TOOL=1` in the Codespace environment (exact name matters —
-   it is `ENABLE_LSP_TOOL`, not `LSP_TOOL_ENABLE`).
+1. `ENABLE_LSP_TOOL=1` in the dev environment (exact name matters —
+   it is `ENABLE_LSP_TOOL`, not `LSP_TOOL_ENABLE`). The devcontainer sets
+   this via `remoteEnv`; WSL users should export it from their shell rc.
 2. Language server binaries on PATH:
    - `rust-analyzer` — `rustup component add rust-analyzer`.
    - `vtsls` — when TS arrives.
@@ -181,8 +191,9 @@ Setup (target state — not fully wired yet):
 **Don't:**
 
 - Add hot-reload or dev-server paths (`cargo watch`, `tsc --watch`,
-  `pnpm dev`). `just dev` is the only dev-loop entry point today; `just
-  dev-sync` will be the only one in Phase 3.
+  `pnpm dev`). `just dev` is the only dev-loop entry point — today it
+  wraps `cargo run`; Phase 3 reimplements it on Bazel + Tilt + local k8s
+  under the same name. Don't add siblings.
 - `throw` in TS application code (when TS exists). Don't `unwrap()` /
   `expect()` in Rust production code.
 - Silence the type checker (`any`, non-trivial `as` casts, `// @ts-ignore`).
@@ -190,5 +201,5 @@ Setup (target state — not fully wired yet):
 - Ship tests that only exercise the happy path. If `cargo-mutants` / Stryker
   can flip a comparison and your tests still pass, the tests are not doing
   their job.
-- Hand-write BUILD files for third-party crates (once Bazel lands); use
-  `crate_universe`.
+- Hand-write BUILD files for third-party crates. Use `crate_universe`;
+  regenerate with `just bazel-repin` after Cargo.toml edits.
