@@ -34,6 +34,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # fmt + clippy stay on cargo for now — rules_rust lint/format targets
+      # exist but we want the house-standard rustfmt/clippy output until we
+      # verify parity. Tracked in ROADMAP Phase 3a.
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -48,8 +51,16 @@ jobs:
       - name: cargo clippy
         run: cargo clippy --all-targets -- -D warnings
 
-      - name: cargo test (offline suite)
-        run: cargo test --locked
+      # Bazel owns the build + test surface from here on.
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.19.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}
+          repository-cache: true
 
-      - name: cargo test (live-DB smoke)
-        run: cargo test --locked --test live_db -- --ignored --nocapture
+      - name: bazel test (offline suite)
+        run: bazel test //...
+
+      - name: bazel test (live-DB smoke)
+        run: bazel test //tests:live_db --config=live

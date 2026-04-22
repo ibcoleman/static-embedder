@@ -64,43 +64,33 @@ expect the raw score to drift; what we care about is that *new code
 arrives with tests that kill its mutants*, which will show up as
 near-stable score even as the code grows.
 
-## Phase 2 — Persistent staging target
+## Phase 2 — Persistent staging target (deferred)
 
-Goal: a URL that's always up, not dependent on a running Codespace. This is
-orthogonal to the build-system migration and can land before Phase 3.
+Goal: a URL that's always up, not dependent on a running dev machine. This
+was orthogonal to the build-system migration and could have landed before
+Phase 3.
 
-**Chosen stack: Fly.io + Neon Postgres.** Neon's free tier supports
-pgvector and is fully web-UI driven (no CLI needed for the DB); Fly hosts
-the app container. Fly Postgres (their native offering) was the alternative
-and is still viable if we want to collapse to a single vendor later. Render
-was rejected because its free Postgres tier doesn't include pgvector.
+**Status (2026-04-21):** deferred. The project moved back to a local WSL
+dev loop (`just dev` + docker-compose Postgres) and the need for a
+shareable demo URL went away. The deployable artifact from the first
+attempt is still in the tree:
 
-### Part 1 — Deployable artifact + first manual deploy
+- `Dockerfile` — multi-stage (rust builder → model downloader → distroless
+  runtime with model files baked in). Still useful; Phase 3 will reuse it
+  for the k3d/kind image.
+- `.dockerignore` — keeps the build context tight.
+- `fly.toml` — Fly-specific. Harmless until somebody picks this phase back
+  up; delete if we commit to a different host.
 
-- [x] `Dockerfile` — multi-stage (rust builder → model downloader → distroless
-  runtime with model files baked in, `gcr.io/distroless/cc-debian12:nonroot`).
-- [x] `.dockerignore` — keeps the build context tight (skips `target/`, docs,
-  dev tooling).
-- [x] `fly.toml` — minimal template with `primary_region = "iad"`, a
-  `/healthz` check, and shared-1x / 512 MB VM size.
-- [x] README "Deploy to Fly.io + Neon" section — one-time setup (Neon
-  provisioning + `CREATE EXTENSION vector`, `flyctl auth login`, secret,
-  `flyctl deploy`) and smoke test.
-- [ ] **Execute the one-time setup** (user action — CLI from Codespace).
-- [ ] **Capture the live URL** in README once the first deploy is green.
+The original plan picked **Fly.io + Neon Postgres** (Neon for pgvector on
+the free tier, Fly for the app container). Fly Postgres was a viable
+single-vendor alternative. Render was rejected because its free Postgres
+tier doesn't include pgvector. If staging comes back on the table, that
+analysis is the starting point — re-validate pricing and pgvector support
+on each option before committing.
 
-**Part 1 exit**: a shareable `https://<app>.fly.dev/` URL renders the demo UI
-and serves search against Neon. Redeploys are still manual `flyctl deploy`.
-
-### Part 2 — Automate redeploys
-
-- [ ] `.github/workflows/deploy.yml` — `superfly/flyctl-actions@master`,
-  triggered on push to `main` after the `ci` job passes.
-- [ ] `FLY_API_TOKEN` repo secret (generated via `flyctl tokens create deploy`).
-- [ ] README update noting that merging to `main` now redeploys automatically.
-
-**Phase 2 exit**: `main` deploys automatically; the shareable URL stays in
-sync with `main` without manual intervention.
+**Re-entry conditions:** someone needs a persistent demo URL, or Phase 3
+k8s work produces manifests that want a real cloud target.
 
 ## Phase 3 — Bazel, Tilt, k8s, `just dev-sync`
 
@@ -109,15 +99,28 @@ and should be treated as a dedicated milestone.
 
 Sub-phases:
 
-### 3a. Bazel for Rust only
+### 3a. Bazel for Rust only (done — 2026-04-21)
 
-- [ ] `WORKSPACE.bazel` / `MODULE.bazel` with `rules_rust` and
-  `crate_universe`.
-- [ ] Migrate `Cargo.toml` into the `crate_universe` manifest; regenerate.
-- [ ] `BUILD.bazel` targets: library, binary, integration tests, property
-  tests.
-- [ ] CI runs `bazel test //...` in place of `cargo test`. Keep
-  `cargo fmt`/`clippy` as separate steps until tooling catches up.
+- [x] `MODULE.bazel` with `rules_rust` 0.69.0 and `crate_universe` in
+  `from_cargo` mode. Bazel 9.1.0 pinned via `.bazelversion`. WORKSPACE is
+  intentionally absent — Bazel 9 removes it.
+- [x] Cargo.toml stays the dep source of truth; `crate_universe` reads it
+  directly. Repin via `CARGO_BAZEL_REPIN=1 bazel fetch @crates//...`
+  (or `just bazel-repin`). Both `Cargo.lock` and `MODULE.bazel.lock` are
+  committed.
+- [x] `BUILD.bazel` targets: `rust_library` + `rust_binary` at root;
+  `rust_test` per integration/property file under `tests/BUILD.bazel`.
+  `live_db` and `properties_live` carry `tags = ["manual", "external"]`
+  and retain their `#[ignore]` attrs so both `cargo test` and
+  `bazel test //...` skip them by default; opt in with
+  `bazel test //tests:live_db --config=live`.
+- [x] CI runs `bazel test //...` (offline suite) and
+  `bazel test //tests:live_db --config=live` (live smoke). `cargo fmt` /
+  `cargo clippy` stay as separate Cargo steps per the roadmap note.
+
+**Exit evidence:** `bazel test //...` and `bazel test //tests:live_db
+--config=live` both green locally against docker-compose Postgres.
+`just check` and `just test-live` now wrap those Bazel invocations.
 
 ### 3b. k3d/kind inside the Codespace
 

@@ -1,0 +1,35 @@
+"""Bazel module definition for static-embedder.
+
+Phase 3a of the roadmap: Bazel manages the Rust build; Cargo.toml is the
+source of truth for deps (crate_universe reads it via `from_cargo`).
+
+Regenerate crate lockfile after editing Cargo.toml:
+
+    CARGO_BAZEL_REPIN=1 bazel sync --only=crates
+"""
+
+module(
+    name = "static_embedder",
+    version = "0.1.0",
+)
+
+bazel_dep(name = "rules_rust", version = "0.69.0")
+
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(
+    edition = "2021",
+    # Pin a specific stable. Bump deliberately when the project's
+    # rust-version floor in Cargo.toml moves.
+    versions = ["1.85.0"],
+)
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//:Cargo.lock",
+    manifests = ["//:Cargo.toml"],
+)
+use_repo(crate, "crates")

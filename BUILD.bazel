@@ -1,0 +1,65 @@
+"""Root package: library, binary, and crate_universe watch points.
+
+Cargo.toml stays the dep source of truth. After editing it, repin with:
+
+    CARGO_BAZEL_REPIN=1 bazel fetch @crates//...
+"""
+
+load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_library")
+
+# Exported so crate_universe's `from_cargo` extension can watch them.
+exports_files([
+    "Cargo.toml",
+    "Cargo.lock",
+])
+
+rust_library(
+    name = "static_embedder",
+    srcs = glob(
+        ["src/**/*.rs"],
+        exclude = ["src/main.rs"],
+    ),
+    crate_root = "src/lib.rs",
+    edition = "2021",
+    # `include_str!("../../static/index.html")` in src/http/mod.rs and
+    # `sqlx::migrate!("./migrations")` in src/adapters/pg_vector_repository.rs
+    # both read these files at macro-expansion time — they must live in the
+    # sandbox during compilation.
+    compile_data = [
+        "static/index.html",
+    ] + glob(["migrations/*.sql"]),
+    visibility = ["//visibility:public"],
+    proc_macro_deps = [
+        "@crates//:async-trait",
+    ],
+    deps = [
+        "@crates//:anyhow",
+        "@crates//:axum",
+        "@crates//:model2vec-rs",
+        "@crates//:pgvector",
+        "@crates//:serde",
+        "@crates//:serde_json",
+        "@crates//:sqlx",
+        "@crates//:thiserror",
+        "@crates//:tokio",
+        "@crates//:tower",
+        "@crates//:tracing",
+        "@crates//:tracing-subscriber",
+        "@crates//:uuid",
+    ],
+)
+
+rust_binary(
+    name = "static-embedder",
+    srcs = ["src/main.rs"],
+    edition = "2021",
+    deps = [
+        ":static_embedder",
+        "@crates//:anyhow",
+        "@crates//:axum",
+        "@crates//:sqlx",
+        "@crates//:tokio",
+        "@crates//:tracing",
+        "@crates//:tracing-subscriber",
+    ],
+)

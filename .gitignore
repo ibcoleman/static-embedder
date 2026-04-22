@@ -1,1 +1,7 @@
 /target
+
+# Bazel build outputs and user-local config. `MODULE.bazel.lock` and
+# `Cargo.Bazel.lock` are committed for reproducibility — they pin the
+# Bazel module graph and the crate_universe resolution respectively.
+/bazel-*
+/user.bazelrc

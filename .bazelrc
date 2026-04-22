@@ -1,0 +1,28 @@
+# Bazel build settings. See https://bazel.build/reference/command-line-reference.
+#
+# This file is checked in and applies to every Bazel invocation. Per-user
+# overrides belong in a sibling `user.bazelrc` (git-ignored) imported at the
+# bottom.
+
+# Bazel 9 defaults to bzlmod, but be explicit so older tooling still works.
+common --enable_bzlmod
+
+# Keep the action environment deterministic. Avoids surprises when a
+# developer has something odd in their shell env that the sandbox inherits.
+build --incompatible_strict_action_env
+
+# Print failing test logs inline. CI and local `bazel test` both benefit.
+test --test_output=errors
+
+# Surface test stderr for manual debugging of live-DB / live-model targets.
+test:live --test_output=all
+test:live --test_tag_filters=manual,external
+# The `manual`-tagged targets keep `#[ignore]` in source so `cargo test`
+# still skips them by default. Under Bazel we opt them in explicitly.
+test:live --test_arg=--ignored
+# Thread DATABASE_URL (live_db) and MODEL_ID (properties_live) through
+# from the host shell. Bazel's sandbox otherwise strips ambient env.
+test:live --test_env=DATABASE_URL
+test:live --test_env=MODEL_ID
+
+try-import %workspace%/user.bazelrc
