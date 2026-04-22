@@ -142,8 +142,19 @@ surfaces `localhost:8080/healthz` → `ok`, and `/embed` returns a
 512-dim vector. Docker-compose path (`just dev`) still works
 identically for anyone who prefers it.
 
-### 3c. Retire the old paths
+### 3c. Retire the old paths + unify on Bazel
 
+- [ ] **Move the image build to Bazel.** Today's Tiltfile invokes
+  `docker_build` on the committed multi-stage `Dockerfile`, which runs
+  `cargo build --release` inside the container. This duplicates what
+  Bazel already knows how to do and makes cold rebuilds ~5 min.
+  Replace with: `bazel build //:static-embedder` outside the container
+  (via Tilt's `custom_build` or `local_resource`), then a minimal
+  runtime Dockerfile (or a `rules_oci` `oci_image` target) that just
+  COPYs the prebuilt binary + model weights into a distroless base.
+  Expected payoff: incremental rebuilds drop to ~30s; "Bazel is the
+  engine" becomes true end-to-end (CI, tests, and container builds
+  all flow through one graph).
 - [ ] Rename `just dev-k8s` → `just dev` and delete the current
   cargo-based `just dev`. Kind + Tilt becomes the sole inner loop.
 - [ ] Delete `docker-compose.yml`; update `devcontainer.json`
