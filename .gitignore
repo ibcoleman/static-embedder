@@ -5,3 +5,8 @@
 # Bazel module graph and the crate_universe resolution respectively.
 /bazel-*
 /user.bazelrc
+
+# cargo-mutants output (produced by `just mutants`; CI uploads it as
+# an artifact via .github/workflows/mutants.yml).
+/mutants.out/
+/mutants.out.old/
