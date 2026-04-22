@@ -1,12 +1,17 @@
-"""Integration + property test targets.
+"""Test targets.
 
-Offline tests (`integration`, `properties`) run under `bazel test //...`.
-Live targets (`live_db`, `properties_live`) are tagged `manual` + `external`
-so they're excluded from default test runs, and their test fns carry
-`#[ignore]` so `cargo test --test <name>` still skips them without extra
-flags. Under Bazel, invoke them with `--config=live` (see .bazelrc), which
-adds `--test_arg=--ignored` to flip the Rust test harness into
-ignored-tests-only mode.
+Offline tests (`api`, `properties`) use fakes; they run under
+`bazel test //...`. Integration tests (`integration_db`,
+`integration_embedder`) hit real external resources — a live Postgres
+and HuggingFace model download respectively — and are tagged `manual`
++ `external` so they're excluded from default runs. Their test fns
+carry `#[ignore]` so `cargo test --test <name>` also skips them
+without extra flags. Under Bazel, invoke them with `--config=live`
+(see .bazelrc), which adds `--test_arg=--ignored` to flip the Rust
+test harness into ignored-tests-only mode.
+
+See tests/README or CLAUDE.md's Testing section for the naming
+rationale (industry "integration" vs Rust's toolchain term of art).
 """
 
 load("@rules_rust//rust:defs.bzl", "rust_test")
@@ -22,12 +27,12 @@ _SUPPORT = "support/mod.rs"
 _SUPPORT_PROC_MACROS = ["@crates//:async-trait"]
 
 rust_test(
-    name = "integration",
+    name = "api",
     srcs = [
-        "integration.rs",
+        "api.rs",
         _SUPPORT,
     ],
-    crate_root = "integration.rs",
+    crate_root = "api.rs",
     edition = "2021",
     size = "small",
     proc_macro_deps = _SUPPORT_PROC_MACROS,
@@ -59,12 +64,12 @@ rust_test(
 )
 
 rust_test(
-    name = "live_db",
+    name = "integration_db",
     srcs = [
-        "live_db.rs",
+        "integration_db.rs",
         _SUPPORT,
     ],
-    crate_root = "live_db.rs",
+    crate_root = "integration_db.rs",
     edition = "2021",
     size = "small",
     proc_macro_deps = _SUPPORT_PROC_MACROS,
@@ -82,9 +87,9 @@ rust_test(
 )
 
 rust_test(
-    name = "properties_live",
-    srcs = ["properties_live.rs"],
-    crate_root = "properties_live.rs",
+    name = "integration_embedder",
+    srcs = ["integration_embedder.rs"],
+    crate_root = "integration_embedder.rs",
     edition = "2021",
     # `medium` not `small`: first run downloads ~8 MB of model weights from
     # HuggingFace. Cached runs are fast, but the download can exceed the

@@ -55,20 +55,30 @@ dev:
 reset-cluster:
     kind delete cluster --name static-embedder
 
-# Note: fmt/clippy stay on Cargo until rules_rust ships equivalents we
+# fmt + clippy stay on Cargo until rules_rust ships equivalents we
 # trust; tests run under Bazel.
-# cargo fmt + clippy + `bazel test //...`. Matches CI.
+# cargo fmt + clippy + `just test`. Matches CI exactly.
 check:
     cargo fmt -- --check
     cargo clippy --all-targets -- -D warnings
+    just test
+
+# Offline test suite: //tests:api + //tests:properties (fakes, no
+# external dependencies). Cached runs are near-instant.
+# Run the offline test suite via Bazel.
+test:
     bazel test //...
 
-# Expects the postgres StatefulSet to be reachable on localhost:5432
-# (i.e., `just dev` running in another terminal).
-# Live-DB smoke test against the in-cluster Postgres.
-test-live:
+# Both integration tests: //tests:integration_db and
+# //tests:integration_embedder. Expects `just dev` running in another
+# terminal (Tilt forwards Postgres to localhost:5432). First run of
+# the embedder test downloads ~8 MB of weights from HuggingFace.
+# The --config=live group opts in to manual-tagged targets and adds
+# --test_arg=--ignored to flip the Rust test harness on.
+# Run the integration test suite (real DB + real embedder).
+test-integration:
     DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings \
-        bazel test //tests:live_db --config=live
+        bazel test //... --config=live
 
 # Regenerate the crate_universe lockfile. Run after editing Cargo.toml.
 bazel-repin:
@@ -89,7 +99,7 @@ mutants:
         --exclude src/main.rs \
         --exclude src/adapters/model2vec_embedder.rs \
         --exclude src/adapters/pg_vector_repository.rs \
-        --exclude tests/live_db.rs
+        --exclude tests/integration_db.rs
 
 # Apply format changes and clippy-fixable lints.
 fix:

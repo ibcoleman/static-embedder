@@ -14,7 +14,8 @@ system.
 - [x] `DocId` newtype wrapping `Uuid` at the domain boundary.
 - [x] `proptest` dev-dep + `tests/properties.rs` with two seed properties
   (dimension invariance, hit-belongs-to-corpus + sort order).
-- [x] `Justfile` covering `dev`, `check`, `test-live`, `reset-db`, `doctor`.
+- [x] `Justfile` covering the core inner-loop commands (`dev`, `check`,
+  `test`, `doctor`, etc.; full set evolves through Phase 3).
 - [x] `cargo-mutants` nightly workflow uploading `mutants.out/` as an
   artifact. Track the baseline mutation score.
 - [x] LSP plugin integration: `ENABLE_LSP_TOOL=1` in devcontainer
@@ -22,8 +23,10 @@ system.
   devcontainer image; `just doctor` verifies both. The per-user Claude
   Code plugin install is documented in `CLAUDE.md` > LSP section.
 - [x] `Model2VecEmbedder` determinism property in
-  `tests/properties_live.rs`. Gated `#[ignore]` because it downloads
-  weights; run via `cargo test --test properties_live -- --ignored`.
+  `tests/integration_embedder.rs` (originally `properties_live.rs`,
+  renamed in 3c's tail for clearer taxonomy). Gated `#[ignore]` because
+  it downloads weights; run via `cargo test --test integration_embedder
+  -- --ignored`.
 
 **Phase 1 closeout (one open item)**
 
@@ -110,17 +113,17 @@ Sub-phases:
   committed.
 - [x] `BUILD.bazel` targets: `rust_library` + `rust_binary` at root;
   `rust_test` per integration/property file under `tests/BUILD.bazel`.
-  `live_db` and `properties_live` carry `tags = ["manual", "external"]`
+  `integration_db` and `integration_embedder` carry `tags = ["manual", "external"]`
   and retain their `#[ignore]` attrs so both `cargo test` and
   `bazel test //...` skip them by default; opt in with
-  `bazel test //tests:live_db --config=live`.
+  `bazel test //tests:integration_db --config=live`.
 - [x] CI runs `bazel test //...` (offline suite) and
-  `bazel test //tests:live_db --config=live` (live smoke). `cargo fmt` /
+  `bazel test //tests:integration_db --config=live` (live smoke). `cargo fmt` /
   `cargo clippy` stay as separate Cargo steps per the roadmap note.
 
-**Exit evidence:** `bazel test //...` and `bazel test //tests:live_db
+**Exit evidence:** `bazel test //...` and `bazel test //tests:integration_db
 --config=live` both green locally against docker-compose Postgres.
-`just check` and `just test-live` now wrap those Bazel invocations.
+`just check` and `just test-integration` now wrap those Bazel invocations.
 
 ### 3b. kind + Tilt dev loop
 

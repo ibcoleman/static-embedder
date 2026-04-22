@@ -1,12 +1,17 @@
-//! Live-DB smoke test. Gated with `#[ignore]` — run via:
+//! Integration test against a real pgvector Postgres. Gated with
+//! `#[ignore]` — run via:
 //!
-//!     docker compose up -d
+//!     # With `just dev` running in another terminal (Tilt forwards 5432):
 //!     DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings \
-//!         cargo test --test live_db -- --ignored
+//!         cargo test --test integration_db -- --ignored
 //!
-//! Exercises the real `PgVectorRepository` against pgvector: migration,
-//! VECTOR round-trip, HNSW-indexed cosine search. Uses `FakeEmbedder`
-//! so no HuggingFace download is required.
+//!     # Or under Bazel (same expectation):
+//!     just test-live
+//!
+//! Exercises the real `PgVectorRepository`: migration, VECTOR round-trip,
+//! HNSW-indexed cosine search. Uses `FakeEmbedder` so no HuggingFace
+//! download is required — the embedder side has its own integration
+//! test in `integration_embedder.rs`.
 
 mod support;
 
@@ -41,7 +46,7 @@ async fn connect_or_skip() -> Option<PgVectorRepository> {
 
 #[tokio::test]
 #[ignore]
-async fn live_db_index_and_search() {
+async fn integration_db_index_and_search() {
     let Some(repo) = connect_or_skip().await else {
         return;
     };

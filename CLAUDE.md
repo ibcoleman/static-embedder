@@ -63,12 +63,14 @@ improvise — surface the tension and ask.
 From the repo root on your dev machine (WSL or Codespace):
 
 ```
-just dev            # kind cluster + tilt up (the only inner loop)
-just check          # cargo fmt + clippy, then `bazel test //...`
-just test-live      # `bazel test //tests:live_db --config=live` (needs `just dev` up)
-just bazel-repin    # regenerate crate_universe pins after editing Cargo.toml
-just reset-cluster  # delete the kind cluster entirely
-just doctor         # verify prerequisites are on PATH
+just dev               # kind cluster + tilt up (the only inner loop)
+just test              # offline suite: api + properties via fakes
+just test-integration  # real DB + real embedder (needs `just dev` up)
+just check             # cargo fmt + clippy + `just test` (matches CI)
+just mutants           # cargo-mutants locally (mirrors nightly CI)
+just bazel-repin       # regenerate crate_universe pins after editing Cargo.toml
+just reset-cluster     # delete the kind cluster entirely
+just doctor            # verify prerequisites are on PATH
 ```
 
 One engine end-to-end: Bazel builds the binary, Tilt's `custom_build`

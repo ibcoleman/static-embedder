@@ -55,29 +55,35 @@ on `localhost:5432`. Ctrl+C leaves the cluster running for the next
 `tilt up`; `just reset-cluster` nukes it.
 
 Run `just` with no arguments to see every other available recipe
-(`check`, `test-live`, `mutants`, `bazel-repin`, and friends).
-`CLAUDE.md` has the full narrative around each.
+(`check`, `test`, `test-integration`, `mutants`, `bazel-repin`, and
+friends). `CLAUDE.md` has the full narrative around each.
 
 ## Tests
 
-Bazel owns the build + test surface (Phase 3a of the roadmap). The canonical
-invocations:
+Bazel owns the build + test surface. The canonical invocations:
 
 ```
 bazel test //...                                   # offline suite (fakes)
-bazel test //tests:live_db --config=live           # against docker-compose pg
+bazel test //tests:integration_db --config=live    # real pgvector Postgres
+bazel test //tests:integration_embedder --config=live  # real Model2Vec
 ```
 
-Cargo still works for developers who prefer it — tests are declared once in
-the source and both drivers can execute them:
+Cargo still works for developers who prefer it — tests are declared
+once in the source and both drivers can execute them:
 
 ```
 cargo test                                         # offline suite
-cargo test --test live_db -- --ignored             # live pg
+cargo test --test integration_db -- --ignored      # real DB
+cargo test --test integration_embedder -- --ignored  # real embedder
 ```
 
+The offline suite (`api`, `properties`) uses `FakeEmbedder` +
+`InMemoryRepository` and has no external dependencies. The integration
+tests (`integration_db`, `integration_embedder`) each hit one real
+external resource and are opted in explicitly.
+
 CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo clippy`,
-the Bazel offline suite, and the Bazel live-DB smoke test against a
+the Bazel offline suite, and the `integration_db` smoke test against a
 pgvector service container on every PR.
 
 ## Persistent staging
