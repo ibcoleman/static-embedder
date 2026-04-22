@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: static-embedder
+  labels:
+    app.kubernetes.io/name: static-embedder
+    app.kubernetes.io/component: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: static-embedder
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: static-embedder
+        app.kubernetes.io/component: api
+    spec:
+      containers:
+        - name: static-embedder
+          # Image ref matches what Tilt builds (see Tiltfile). Tilt
+          # handles tag substitution on every rebuild, so no explicit
+          # tag here.
+          image: static-embedder
+          ports:
+            - containerPort: 8080
+              name: http
+          env:
+            - name: DATABASE_URL
+              value: postgres://embedder:embedder@postgres:5432/embeddings
+            - name: BIND_ADDR
+              value: 0.0.0.0:8080
+            - name: RUST_LOG
+              value: info
+            # The Dockerfile bakes model weights at /opt/model; point
+            # Model2VecEmbedder at that path.
+            - name: MODEL_ID
+              value: /opt/model
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

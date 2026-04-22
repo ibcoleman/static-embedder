@@ -37,14 +37,24 @@ in `main()`. Adapters today: `Model2VecEmbedder` (via `model2vec-rs`) and
 ## Running locally (non-Codespaces)
 
 Prereqs: Rust (via rustup), Docker Engine with the compose plugin, and
-[`just`](https://github.com/casey/just). Verify with `just doctor`. Then:
+[`just`](https://github.com/casey/just). Verify with `just doctor`. Then
+pick a dev path:
 
 ```
-just dev        # docker compose up -d + cargo run
+just dev        # docker compose Postgres + cargo run (fast inner loop)
+just dev-k8s    # kind + Tilt against k8s/overlays/local (production-shaped)
 ```
 
-Postgres comes up on `localhost:5432`, the service on `localhost:8080`.
-See `CLAUDE.md` for the full target list (`check`, `test-live`, `reset-db`).
+Either way, Postgres ends up on `localhost:5432` and the service on
+`localhost:8080`. `just dev-k8s` additionally needs `kind`, `kubectl`,
+and `tilt` on PATH (`just doctor` reports).
+
+`just dev-k8s` is the target shape — it mirrors a real deployment with a
+Deployment, Service, and StatefulSet, rendered from a kustomize base.
+`just dev` is transitional and goes away in Phase 3c; see `ROADMAP.md`.
+
+See `CLAUDE.md` for the full target list (`check`, `test-live`,
+`bazel-repin`, `reset-db`, `reset-cluster`).
 
 ## Tests
 

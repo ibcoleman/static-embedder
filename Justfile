@@ -23,6 +23,9 @@ doctor:
     check cargo "install via rustup: https://rustup.rs"
     check docker "install Docker Engine or Docker Desktop"
     check bazel "install bazelisk: brew install bazelisk (Linux/macOS) or https://github.com/bazelbuild/bazelisk"
+    check kind "install kind: brew install kind (or https://kind.sigs.k8s.io/docs/user/quick-start/#installation)"
+    check kubectl "install kubectl: brew install kubectl (or https://kubernetes.io/docs/tasks/tools/)"
+    check tilt "install tilt: brew install tilt-dev/tap/tilt (or https://docs.tilt.dev/install.html)"
     if ! docker compose version >/dev/null 2>&1; then
         echo "MISSING  docker compose plugin"
         missing=1
@@ -49,6 +52,23 @@ doctor:
 dev:
     docker compose up -d
     DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings cargo run
+
+# Creates the kind cluster if missing, then launches Tilt. Service on
+# localhost:8080, Postgres on localhost:5432. Transitional — Phase 3c
+# renames this to `dev` and retires the cargo/compose path.
+# kind cluster + Tilt. The Phase 3 dev loop (coexists with `just dev`).
+dev-k8s:
+    #!/usr/bin/env bash
+    set -eu
+    if ! kind get clusters 2>/dev/null | grep -q '^static-embedder$'; then
+        echo "Creating kind cluster 'static-embedder'..."
+        kind create cluster --name static-embedder --wait 120s
+    fi
+    exec tilt up
+
+# Tear down the kind cluster entirely. Use when you want a clean slate.
+reset-cluster:
+    kind delete cluster --name static-embedder
 
 # Note: fmt/clippy stay on Cargo until rules_rust ships equivalents we
 # trust; tests run under Bazel.
