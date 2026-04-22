@@ -1,8 +1,4 @@
 # Command runner entry points. `just --list` shows this, too.
-#
-# Phase 3 replaces this `dev` (cargo run + docker-compose Postgres) with a
-# Bazel + Tilt + local k8s implementation. Same name, different engine.
-# Until then, these are the honest documented inner loop.
 
 _default:
     @just --list
@@ -20,18 +16,12 @@ doctor:
             echo "ok       $1"
         fi
     }
-    check cargo "install via rustup: https://rustup.rs"
+    check cargo "install via rustup: https://rustup.rs (fmt + clippy)"
     check docker "install Docker Engine or Docker Desktop"
     check bazel "install bazelisk: brew install bazelisk (Linux/macOS) or https://github.com/bazelbuild/bazelisk"
     check kind "install kind: brew install kind (or https://kind.sigs.k8s.io/docs/user/quick-start/#installation)"
     check kubectl "install kubectl: brew install kubectl (or https://kubernetes.io/docs/tasks/tools/)"
     check tilt "install tilt: brew install tilt-dev/tap/tilt (or https://docs.tilt.dev/install.html)"
-    if ! docker compose version >/dev/null 2>&1; then
-        echo "MISSING  docker compose plugin"
-        missing=1
-    else
-        echo "ok       docker compose"
-    fi
     if ! command -v rust-analyzer >/dev/null 2>&1; then
         echo "warn     rust-analyzer  (rustup component add rust-analyzer)"
     else
@@ -48,16 +38,11 @@ doctor:
     fi
     echo "ok"
 
-# Bring Postgres up and run the service against it.
+# Creates the kind cluster if missing, then launches Tilt. Bazel builds
+# the binary outside the container; a minimal Dockerfile wraps it.
+# Service on localhost:8080, Postgres on localhost:5432.
+# kind cluster + Tilt. The single inner-loop entry point.
 dev:
-    docker compose up -d
-    DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings cargo run
-
-# Creates the kind cluster if missing, then launches Tilt. Service on
-# localhost:8080, Postgres on localhost:5432. Transitional — Phase 3c
-# renames this to `dev` and retires the cargo/compose path.
-# kind cluster + Tilt. The Phase 3 dev loop (coexists with `just dev`).
-dev-k8s:
     #!/usr/bin/env bash
     set -eu
     if ! kind get clusters 2>/dev/null | grep -q '^static-embedder$'; then
@@ -78,20 +63,15 @@ check:
     cargo clippy --all-targets -- -D warnings
     bazel test //...
 
-# Live-DB smoke test against docker-compose Postgres.
+# Live-DB smoke test. Expects the postgres StatefulSet to be reachable
+# on localhost:5432 (i.e., `just dev` running in another terminal).
 test-live:
-    docker compose up -d
     DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings \
         bazel test //tests:live_db --config=live
 
 # Regenerate the crate_universe lockfile. Run after editing Cargo.toml.
 bazel-repin:
     CARGO_BAZEL_REPIN=1 bazel fetch @crates//...
-
-# Drop the pgdata volume. Use after migration changes.
-reset-db:
-    docker compose down -v
-    docker compose up -d
 
 # Apply format changes and clippy-fixable lints.
 fix:
