@@ -122,20 +122,34 @@ Sub-phases:
 --config=live` both green locally against docker-compose Postgres.
 `just check` and `just test-live` now wrap those Bazel invocations.
 
-### 3b. k3d/kind inside the Codespace
+### 3b. kind + Tilt dev loop
 
-- [ ] Extend `devcontainer.json` with a k3d (or kind) feature.
-- [ ] `k8s/` directory: Deployment, Service, Postgres StatefulSet (or
-  external pgvector) manifests.
-- [ ] Replace `just dev` so it runs `tilt up` against those manifests.
-  Same name as today; Bazel + Tilt + k8s backs it instead of cargo run.
+- [x] Extend `devcontainer.json` with kind + kubectl + tilt (installed
+  via the Homebrew devcontainer feature for parity with local WSL).
+- [x] `k8s/` directory: kustomize base (Deployment + Service + Postgres
+  StatefulSet + headless Service) plus a `local` overlay establishing
+  the pattern for future staging/prod overlays.
+- [x] `Tiltfile` at root: `docker_build` of the existing Dockerfile,
+  `k8s_yaml(kustomize('./k8s/overlays/local'))`, port forwards for 8080
+  (app) and 5432 (Postgres). Context-locked to `kind-static-embedder`.
+- [x] `just dev-k8s` as a *transitional* target — creates the kind
+  cluster if missing, then runs `tilt up`. Coexists with the existing
+  `just dev` (cargo + docker-compose) so the inner loop stays live
+  during the cutover. `just reset-cluster` deletes the kind cluster.
+
+**3b exit evidence:** `just dev-k8s` brings up kind + the stack,
+surfaces `localhost:8080/healthz` → `ok`, and `/embed` returns a
+512-dim vector. Docker-compose path (`just dev`) still works
+identically for anyone who prefers it.
 
 ### 3c. Retire the old paths
 
+- [ ] Rename `just dev-k8s` → `just dev` and delete the current
+  cargo-based `just dev`. Kind + Tilt becomes the sole inner loop.
+- [ ] Delete `docker-compose.yml`; update `devcontainer.json`
+  `postCreateCommand` to drop the `docker compose up -d` step.
 - [ ] Remove `cargo run` from `README.md` and `CLAUDE.md`'s "Dev loop"
   section.
-- [ ] Retire the `cargo run` implementation of `just dev`; the Tilt-driven
-  one from 3b becomes the sole inner-loop entry point under the same name.
 - [ ] Update `CLAUDE.md` Status table: move Phase 3 rows to **Enforced**.
 
 **Phase 3 exit**: `just dev` builds + deploys to local k8s via Tilt;

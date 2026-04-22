@@ -18,7 +18,7 @@ every rule is enforced today. Apply rules according to this table:
 | Mutation testing in CI | **Enforced** | `.github/workflows/mutants.yml` runs `cargo-mutants` nightly. Baseline score recorded in `ROADMAP.md` after first run. |
 | Build via Bazel (`rules_rust` + `crate_universe`) | **Enforced (partial)** | Phase 3a done: `bazel build //...` + `bazel test //...` are canonical; CI runs them. Local `just dev` still wraps `cargo run` — that collapses in 3c. `fmt` / `clippy` stay on Cargo. |
 | Local orchestration via Tilt + local k8s | **Phase 3** | Today: `docker compose up -d` |
-| Single `just dev` path, no hot reload | **Phase 3** | Today: `just dev` wraps `cargo run` honestly. Phase 3 reimplements it on Bazel + Tilt + local k8s under the same name. Do not add hot-reload flavours. |
+| Single `just dev` path, no hot reload | **Enforced (partial)** | 3b landed `just dev-k8s` (kind + Tilt against k8s/overlays/local). Two paths coexist until 3c renames + deletes the docker-compose one. Do not add hot-reload flavours. |
 | No `cargo run` in docs | **Phase 3** | Today: `cargo run` is the documented inner loop |
 | Pedantic TypeScript (strict, `neverthrow`, `type-fest`) | **Not applicable yet** | Frontend is vanilla JS embedded in the binary. Applies when a real TS codebase appears |
 | LSP plugin integration | **Enforced (env)** | Devcontainer sets `ENABLE_LSP_TOOL=1` and ships `rust-analyzer` on PATH. `just doctor` verifies both. The Claude Code plugin install is still a per-user action — see "LSP / agent tooling" below. |
@@ -45,9 +45,11 @@ improvise — surface the tension and ask.
   needs a build step.
 - **Build today:** Cargo. **Phase 3 target:** Bazel (`rules_rust` +
   `crate_universe` for Rust; `rules_js` for TS).
-- **Local orchestration today:** docker-compose on the dev machine (WSL or
-  a GitHub Codespace; both work). **Phase 3 target:** Tilt watching Bazel
-  outputs, deploying into local k8s (`k3d`/`kind` on the same dev machine).
+- **Local orchestration today:** two paths coexist. `just dev` wraps
+  docker-compose + `cargo run` (the old path, still honest). `just
+  dev-k8s` wraps kind + Tilt against kustomize manifests (the Phase
+  3b target). Phase 3c collapses them: `dev-k8s` gets renamed to
+  `dev`, the docker-compose path goes away.
 - **Command runner:** `just`.
 - **Deploy target (staging):** none today. An earlier Fly.io + Neon attempt
   is deferred; see `ROADMAP.md` Phase 2.
@@ -57,18 +59,21 @@ improvise — surface the tension and ask.
 From the repo root on your dev machine (WSL or Codespace):
 
 ```
-just dev          # docker compose up -d + cargo run (inner loop, still on Cargo)
-just check        # cargo fmt + clippy, then `bazel test //...`
-just test-live    # `bazel test //tests:live_db --config=live` against docker-compose pg
-just bazel-repin  # regenerate crate_universe pins after editing Cargo.toml
-just reset-db     # drop the pgdata volume (use when migrations change)
-just doctor       # verify prerequisites are on PATH
+just dev            # docker compose up -d + cargo run (old path, transitional)
+just dev-k8s        # kind + Tilt against k8s/overlays/local (Phase 3b; future `just dev`)
+just check          # cargo fmt + clippy, then `bazel test //...`
+just test-live      # `bazel test //tests:live_db --config=live`
+just bazel-repin    # regenerate crate_universe pins after editing Cargo.toml
+just reset-db       # drop the docker-compose pgdata volume
+just reset-cluster  # delete the kind cluster entirely
+just doctor         # verify prerequisites are on PATH
 ```
 
-Post-3a, Bazel owns build + test; Cargo still drives fmt/clippy and the
-inner-loop `cargo run`. Phase 3c replaces the `cargo run` implementation
-of `just dev` with a Tilt-driven one against local k8s — same target
-name, different engine.
+Post-3a, Bazel owns build + test. Post-3b, kind + Tilt is an available
+dev path (`just dev-k8s`). Phase 3c collapses the duplication: rename
+`dev-k8s` → `dev`, delete docker-compose, retire Cargo from the inner
+loop. Until then, either path is valid — `dev-k8s` exercises the
+production-shaped deployment and is the one we want to graduate.
 
 Do **not** add `cargo watch`, `tsc --watch`, or other hot-reload pathways.
 They present a state that does not match the real build and confuse both

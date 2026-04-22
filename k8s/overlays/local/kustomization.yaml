@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Local dev overlay. Tilt + kind handle image loading directly, so this
+# overlay is mostly a placeholder to establish the pattern — future
+# staging/prod overlays slot in here with image tags, replica counts,
+# and env-specific secrets.
+resources:
+  - ../../base
+
+# Mark resources as belonging to the local environment, useful for
+# kubectl filtering when multiple environments run against the same
+# cluster (rare locally, common in shared clusters).
+labels:
+  - pairs:
+      app.kubernetes.io/instance: local
+    includeSelectors: false
