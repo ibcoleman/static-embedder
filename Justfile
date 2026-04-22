@@ -63,8 +63,9 @@ check:
     cargo clippy --all-targets -- -D warnings
     bazel test //...
 
-# Live-DB smoke test. Expects the postgres StatefulSet to be reachable
-# on localhost:5432 (i.e., `just dev` running in another terminal).
+# Expects the postgres StatefulSet to be reachable on localhost:5432
+# (i.e., `just dev` running in another terminal).
+# Live-DB smoke test against the in-cluster Postgres.
 test-live:
     DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings \
         bazel test //tests:live_db --config=live
@@ -72,6 +73,23 @@ test-live:
 # Regenerate the crate_universe lockfile. Run after editing Cargo.toml.
 bazel-repin:
     CARGO_BAZEL_REPIN=1 bazel fetch @crates//...
+
+# Mirrors .github/workflows/mutants.yml (same exclusions, same -j 2)
+# so local results compare cleanly to nightly.
+# Install first: `cargo install cargo-mutants --locked`.
+# Run cargo-mutants locally against the domain + ports layer.
+mutants:
+    #!/usr/bin/env bash
+    set -eu
+    if ! command -v cargo-mutants >/dev/null 2>&1; then
+        echo "cargo-mutants not installed. Run: cargo install cargo-mutants --locked"
+        exit 1
+    fi
+    cargo mutants --no-shuffle -j 2 \
+        --exclude src/main.rs \
+        --exclude src/adapters/model2vec_embedder.rs \
+        --exclude src/adapters/pg_vector_repository.rs \
+        --exclude tests/live_db.rs
 
 # Apply format changes and clippy-fixable lints.
 fix:

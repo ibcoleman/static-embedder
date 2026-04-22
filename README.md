@@ -54,8 +54,9 @@ the stack via Tilt. Service on `localhost:8080`; in-cluster Postgres
 on `localhost:5432`. Ctrl+C leaves the cluster running for the next
 `tilt up`; `just reset-cluster` nukes it.
 
-See `CLAUDE.md` for the full target list (`check`, `test-live`,
-`bazel-repin`, `reset-cluster`).
+Run `just` with no arguments to see every other available recipe
+(`check`, `test-live`, `mutants`, `bazel-repin`, and friends).
+`CLAUDE.md` has the full narrative around each.
 
 ## Tests
 
