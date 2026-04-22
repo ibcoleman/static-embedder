@@ -16,10 +16,10 @@ every rule is enforced today. Apply rules according to this table:
 | Newtype-wrap primitives with domain meaning | **Enforced (partial)** | `DocId(Uuid)` in place; extend as new types appear |
 | Property-based tests for non-trivial logic | **Enforced (seed)** | `tests/properties.rs`. Add a property alongside any new domain logic |
 | Mutation testing in CI | **Enforced** | `.github/workflows/mutants.yml` runs `cargo-mutants` nightly. Baseline score recorded in `ROADMAP.md` after first run. |
-| Build via Bazel (`rules_rust` + `crate_universe`) | **Enforced (partial)** | Phase 3a done: `bazel build //...` + `bazel test //...` are canonical; CI runs them. Local `just dev` still wraps `cargo run` — that collapses in 3c. `fmt` / `clippy` stay on Cargo. |
-| Local orchestration via Tilt + local k8s | **Phase 3** | Today: `docker compose up -d` |
-| Single `just dev` path, no hot reload | **Enforced (partial)** | 3b landed `just dev-k8s` (kind + Tilt against k8s/overlays/local). Two paths coexist until 3c renames + deletes the docker-compose one. Do not add hot-reload flavours. |
-| No `cargo run` in docs | **Phase 3** | Today: `cargo run` is the documented inner loop |
+| Build via Bazel (`rules_rust` + `crate_universe`) | **Enforced** | Binary, tests, and container image builds all flow through Bazel. CI runs `bazel test //...`; Tilt's `custom_build` invokes `bazel build //:static-embedder` and wraps it in a thin Dockerfile. `fmt` / `clippy` stay on Cargo. |
+| Local orchestration via Tilt + local k8s | **Enforced** | `just dev` = kind cluster + Tilt against kustomize manifests. No docker-compose in the tree. |
+| Single `just dev` path, no hot reload | **Enforced** | `just dev` = kind + Tilt against `k8s/overlays/local`. Bazel builds the binary; a minimal Dockerfile wraps it. No other inner-loop entry points exist. Do not add hot-reload flavours. |
+| No `cargo run` in docs | **Enforced** | Inner loop is `just dev` (kind + Tilt); `cargo run` is not in README/CLAUDE.md. Cargo still handles fmt + clippy. |
 | Pedantic TypeScript (strict, `neverthrow`, `type-fest`) | **Not applicable yet** | Frontend is vanilla JS embedded in the binary. Applies when a real TS codebase appears |
 | LSP plugin integration | **Enforced (env)** | Devcontainer sets `ENABLE_LSP_TOOL=1` and ships `rust-analyzer` on PATH. `just doctor` verifies both. The Claude Code plugin install is still a per-user action — see "LSP / agent tooling" below. |
 
@@ -33,8 +33,9 @@ improvise — surface the tension and ask.
   unrepresentable.
 - **One dev path.** Every change flows through a single build. No hot reloads,
   no parallel "fast paths" that can diverge from the real build and mislead
-  the model. (Phase 3 enforces this via Bazel + Tilt; today, `just dev` is a
-  thin wrapper over `cargo run` + `docker compose up`.)
+  the model. `just dev` boots a kind cluster, Bazel builds the binary,
+  Tilt wraps it in a minimal Dockerfile and deploys. That's the only
+  inner loop.
 - **Tests that bite.** Property-based tests make it hard to write wrong code
   that passes. Mutation tests make it hard to write useless tests that pass.
   We run both (mutation is on the adopt-next list).
@@ -43,37 +44,39 @@ improvise — surface the tension and ask.
 
 - **Language today:** Rust (Cargo). TypeScript pending an actual frontend that
   needs a build step.
-- **Build today:** Cargo. **Phase 3 target:** Bazel (`rules_rust` +
-  `crate_universe` for Rust; `rules_js` for TS).
-- **Local orchestration today:** two paths coexist. `just dev` wraps
-  docker-compose + `cargo run` (the old path, still honest). `just
-  dev-k8s` wraps kind + Tilt against kustomize manifests (the Phase
-  3b target). Phase 3c collapses them: `dev-k8s` gets renamed to
-  `dev`, the docker-compose path goes away.
+- **Build:** Bazel (`rules_rust` + `crate_universe`) for the binary,
+  tests, and container image. Cargo's `Cargo.toml` is still the dep
+  source of truth — `crate_universe` reads it in `from_cargo` mode.
+  `fmt` / `clippy` stay on Cargo. (TypeScript via `rules_js` when a
+  real TS codebase lands.)
+- **Local orchestration:** `just dev` boots a `kind` cluster (if
+  missing) and runs `tilt up` against `k8s/overlays/local`. Bazel
+  builds the binary; `Dockerfile` wraps it onto distroless/cc. Tilt
+  handles image loading, port-forwards (8080 app, 5432 postgres), and
+  incremental rebuilds.
 - **Command runner:** `just`.
 - **Deploy target (staging):** none today. An earlier Fly.io + Neon attempt
   is deferred; see `ROADMAP.md` Phase 2.
 
-## Dev loop (current)
+## Dev loop
 
 From the repo root on your dev machine (WSL or Codespace):
 
 ```
-just dev            # docker compose up -d + cargo run (old path, transitional)
-just dev-k8s        # kind + Tilt against k8s/overlays/local (Phase 3b; future `just dev`)
-just check          # cargo fmt + clippy, then `bazel test //...`
-just test-live      # `bazel test //tests:live_db --config=live`
-just bazel-repin    # regenerate crate_universe pins after editing Cargo.toml
-just reset-db       # drop the docker-compose pgdata volume
-just reset-cluster  # delete the kind cluster entirely
-just doctor         # verify prerequisites are on PATH
+just dev               # kind cluster + tilt up (the only inner loop)
+just test              # offline suite: api + properties via fakes
+just test-integration  # real DB + real embedder (needs `just dev` up)
+just check             # cargo fmt + clippy + `just test` (matches CI)
+just mutants           # cargo-mutants locally (mirrors nightly CI)
+just bazel-repin       # regenerate crate_universe pins after editing Cargo.toml
+just reset-cluster     # delete the kind cluster entirely
+just doctor            # verify prerequisites are on PATH
 ```
 
-Post-3a, Bazel owns build + test. Post-3b, kind + Tilt is an available
-dev path (`just dev-k8s`). Phase 3c collapses the duplication: rename
-`dev-k8s` → `dev`, delete docker-compose, retire Cargo from the inner
-loop. Until then, either path is valid — `dev-k8s` exercises the
-production-shaped deployment and is the one we want to graduate.
+One engine end-to-end: Bazel builds the binary, Tilt's `custom_build`
+stages it with a minimal Dockerfile, kind runs the resulting image.
+No cargo in the container, no docker-compose on the side, no
+hot-reload flavours.
 
 Do **not** add `cargo watch`, `tsc --watch`, or other hot-reload pathways.
 They present a state that does not match the real build and confuse both
@@ -190,15 +193,16 @@ Setup (target state — not fully wired yet):
 - Use newtype wrappers for IDs and other semantically-distinct values.
 - Add property-based tests for any non-trivial new logic.
 - Run `just doctor` if anything about the toolchain feels off.
-- When a task would require a **Phase 3** capability (Bazel, Tilt, k8s) that
-  isn't in place yet, surface it and ask rather than improvising.
+- Trust the toolchain: Bazel for builds + tests + images, kind + Tilt
+  for the dev loop, Cargo for fmt + clippy + dep management. Don't
+  introduce a fourth engine without a discussion.
 
 **Don't:**
 
 - Add hot-reload or dev-server paths (`cargo watch`, `tsc --watch`,
-  `pnpm dev`). `just dev` is the only dev-loop entry point — today it
-  wraps `cargo run`; Phase 3 reimplements it on Bazel + Tilt + local k8s
-  under the same name. Don't add siblings.
+  `pnpm dev`). `just dev` — kind + Tilt against `k8s/overlays/local`,
+  Bazel-built binary wrapped in a thin Dockerfile — is the only
+  dev-loop entry point. Don't add siblings.
 - `throw` in TS application code (when TS exists). Don't `unwrap()` /
   `expect()` in Rust production code.
 - Silence the type checker (`any`, non-trivial `as` casts, `// @ts-ignore`).

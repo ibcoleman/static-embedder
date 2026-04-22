@@ -11,14 +11,15 @@ in `main()`. Adapters today: `Model2VecEmbedder` (via `model2vec-rs`) and
 ## Try it (GitHub Codespaces — iPad-friendly)
 
 1. On the repo page, click **Code → Codespaces → Create codespace on main**.
-2. Wait ~90 seconds for the container to build. `docker compose up -d` runs
-   automatically; pgvector Postgres is listening on `localhost:5432`.
-3. In the Codespace terminal: `just dev`. First run downloads the model
-   (~8 MB) and compiles; subsequent runs are fast.
+2. Wait ~2 minutes for the container to build. The devcontainer
+   postCreate step installs bazelisk, kind, kubectl, and tilt.
+3. In the Codespace terminal: `just dev`. First run creates a kind
+   cluster (~30s), builds the binary via Bazel (~3-5 min cold), wraps
+   it in a Dockerfile, loads it into kind, and Tilt rolls it out.
 4. VS Code surfaces a "port forwarded" notification for 8080. Click
-   **Open in Browser**. The first time you may also want to right-click the
-   port in the **Ports** panel and set visibility to **Public** if you want
-   to share the URL.
+   **Open in Browser**. The first time you may also want to right-click
+   the port in the **Ports** panel and set visibility to **Public** if
+   you want to share the URL.
 5. The browser lands on the demo UI: paste paragraphs, hit **Index**, then
    semantic-search them.
 
@@ -36,46 +37,53 @@ in `main()`. Adapters today: `Model2VecEmbedder` (via `model2vec-rs`) and
 
 ## Running locally (non-Codespaces)
 
-Prereqs: Rust (via rustup), Docker Engine with the compose plugin, and
-[`just`](https://github.com/casey/just). Verify with `just doctor`. Then
-pick a dev path:
+Prereqs (all on PATH; `just doctor` verifies): Rust (via rustup),
+Docker, [`just`](https://github.com/casey/just), `bazelisk`, `kind`,
+`kubectl`, `tilt`. On macOS/Linux, `brew install bazelisk kind
+kubernetes-cli tilt-dev/tap/tilt` covers the k8s + Bazel tools.
+
+Then:
 
 ```
-just dev        # docker compose Postgres + cargo run (fast inner loop)
-just dev-k8s    # kind + Tilt against k8s/overlays/local (production-shaped)
+just dev
 ```
 
-Either way, Postgres ends up on `localhost:5432` and the service on
-`localhost:8080`. `just dev-k8s` additionally needs `kind`, `kubectl`,
-and `tilt` on PATH (`just doctor` reports).
+That creates a kind cluster (if missing), `bazel build`s the binary,
+wraps it in a minimal Dockerfile, loads it into kind, and brings up
+the stack via Tilt. Service on `localhost:8080`; in-cluster Postgres
+on `localhost:5432`. Ctrl+C leaves the cluster running for the next
+`tilt up`; `just reset-cluster` nukes it.
 
-`just dev-k8s` is the target shape — it mirrors a real deployment with a
-Deployment, Service, and StatefulSet, rendered from a kustomize base.
-`just dev` is transitional and goes away in Phase 3c; see `ROADMAP.md`.
-
-See `CLAUDE.md` for the full target list (`check`, `test-live`,
-`bazel-repin`, `reset-db`, `reset-cluster`).
+Run `just` with no arguments to see every other available recipe
+(`check`, `test`, `test-integration`, `mutants`, `bazel-repin`, and
+friends). `CLAUDE.md` has the full narrative around each.
 
 ## Tests
 
-Bazel owns the build + test surface (Phase 3a of the roadmap). The canonical
-invocations:
+Bazel owns the build + test surface. The canonical invocations:
 
 ```
 bazel test //...                                   # offline suite (fakes)
-bazel test //tests:live_db --config=live           # against docker-compose pg
+bazel test //tests:integration_db --config=live    # real pgvector Postgres
+bazel test //tests:integration_embedder --config=live  # real Model2Vec
 ```
 
-Cargo still works for developers who prefer it — tests are declared once in
-the source and both drivers can execute them:
+Cargo still works for developers who prefer it — tests are declared
+once in the source and both drivers can execute them:
 
 ```
 cargo test                                         # offline suite
-cargo test --test live_db -- --ignored             # live pg
+cargo test --test integration_db -- --ignored      # real DB
+cargo test --test integration_embedder -- --ignored  # real embedder
 ```
 
+The offline suite (`api`, `properties`) uses `FakeEmbedder` +
+`InMemoryRepository` and has no external dependencies. The integration
+tests (`integration_db`, `integration_embedder`) each hit one real
+external resource and are opted in explicitly.
+
 CI (`.github/workflows/ci.yml`) runs `cargo fmt --check`, `cargo clippy`,
-the Bazel offline suite, and the Bazel live-DB smoke test against a
+the Bazel offline suite, and the `integration_db` smoke test against a
 pgvector service container on every PR.
 
 ## Persistent staging

@@ -1,9 +1,10 @@
-//! Property tests that exercise real adapters. Gated with `#[ignore]`
-//! because the embedder downloads weights from HuggingFace on first run
-//! and the live-DB tests need a running Postgres.
+//! Integration test against the real Model2Vec embedder. Property-based
+//! because the invariants (dimension, determinism) hold for every input,
+//! but the adapter under test is the production one — weights are
+//! downloaded from HuggingFace on first run. Gated with `#[ignore]`.
 //!
 //! Run with:
-//!     cargo test --test properties_live -- --ignored --nocapture
+//!     cargo test --test integration_embedder -- --ignored --nocapture
 //!
 //! Set `MODEL_ID` to override the default model, or point it at a
 //! pre-cached local directory.

@@ -14,7 +14,8 @@ system.
 - [x] `DocId` newtype wrapping `Uuid` at the domain boundary.
 - [x] `proptest` dev-dep + `tests/properties.rs` with two seed properties
   (dimension invariance, hit-belongs-to-corpus + sort order).
-- [x] `Justfile` covering `dev`, `check`, `test-live`, `reset-db`, `doctor`.
+- [x] `Justfile` covering the core inner-loop commands (`dev`, `check`,
+  `test`, `doctor`, etc.; full set evolves through Phase 3).
 - [x] `cargo-mutants` nightly workflow uploading `mutants.out/` as an
   artifact. Track the baseline mutation score.
 - [x] LSP plugin integration: `ENABLE_LSP_TOOL=1` in devcontainer
@@ -22,8 +23,10 @@ system.
   devcontainer image; `just doctor` verifies both. The per-user Claude
   Code plugin install is documented in `CLAUDE.md` > LSP section.
 - [x] `Model2VecEmbedder` determinism property in
-  `tests/properties_live.rs`. Gated `#[ignore]` because it downloads
-  weights; run via `cargo test --test properties_live -- --ignored`.
+  `tests/integration_embedder.rs` (originally `properties_live.rs`,
+  renamed in 3c's tail for clearer taxonomy). Gated `#[ignore]` because
+  it downloads weights; run via `cargo test --test integration_embedder
+  -- --ignored`.
 
 **Phase 1 closeout (one open item)**
 
@@ -110,17 +113,17 @@ Sub-phases:
   committed.
 - [x] `BUILD.bazel` targets: `rust_library` + `rust_binary` at root;
   `rust_test` per integration/property file under `tests/BUILD.bazel`.
-  `live_db` and `properties_live` carry `tags = ["manual", "external"]`
+  `integration_db` and `integration_embedder` carry `tags = ["manual", "external"]`
   and retain their `#[ignore]` attrs so both `cargo test` and
   `bazel test //...` skip them by default; opt in with
-  `bazel test //tests:live_db --config=live`.
+  `bazel test //tests:integration_db --config=live`.
 - [x] CI runs `bazel test //...` (offline suite) and
-  `bazel test //tests:live_db --config=live` (live smoke). `cargo fmt` /
+  `bazel test //tests:integration_db --config=live` (live smoke). `cargo fmt` /
   `cargo clippy` stay as separate Cargo steps per the roadmap note.
 
-**Exit evidence:** `bazel test //...` and `bazel test //tests:live_db
+**Exit evidence:** `bazel test //...` and `bazel test //tests:integration_db
 --config=live` both green locally against docker-compose Postgres.
-`just check` and `just test-live` now wrap those Bazel invocations.
+`just check` and `just test-integration` now wrap those Bazel invocations.
 
 ### 3b. kind + Tilt dev loop
 
@@ -142,30 +145,29 @@ surfaces `localhost:8080/healthz` → `ok`, and `/embed` returns a
 512-dim vector. Docker-compose path (`just dev`) still works
 identically for anyone who prefers it.
 
-### 3c. Retire the old paths + unify on Bazel
+### 3c. Retire the old paths + unify on Bazel (done — 2026-04-22)
 
-- [ ] **Move the image build to Bazel.** Today's Tiltfile invokes
-  `docker_build` on the committed multi-stage `Dockerfile`, which runs
-  `cargo build --release` inside the container. This duplicates what
-  Bazel already knows how to do and makes cold rebuilds ~5 min.
-  Replace with: `bazel build //:static-embedder` outside the container
-  (via Tilt's `custom_build` or `local_resource`), then a minimal
-  runtime Dockerfile (or a `rules_oci` `oci_image` target) that just
-  COPYs the prebuilt binary + model weights into a distroless base.
-  Expected payoff: incremental rebuilds drop to ~30s; "Bazel is the
-  engine" becomes true end-to-end (CI, tests, and container builds
-  all flow through one graph).
-- [ ] Rename `just dev-k8s` → `just dev` and delete the current
-  cargo-based `just dev`. Kind + Tilt becomes the sole inner loop.
-- [ ] Delete `docker-compose.yml`; update `devcontainer.json`
-  `postCreateCommand` to drop the `docker compose up -d` step.
-- [ ] Remove `cargo run` from `README.md` and `CLAUDE.md`'s "Dev loop"
-  section.
+- [x] **Image build moved to Bazel.** Tiltfile now uses `custom_build`
+  invoking `bazel build //:static-embedder`, then stages the binary
+  next to a minimal `Dockerfile` that wraps it onto distroless/cc.
+  No cargo inside the container. Measured cold rebuild (src change):
+  ~12 seconds (bazel 6s + docker wrap 6s), down from ~5 min.
+- [x] `just dev-k8s` → `just dev`. The cargo-based `just dev` is gone.
+- [x] `docker-compose.yml` deleted. `.devcontainer/devcontainer.json`
+  `postCreateCommand` no longer runs `docker compose up -d` (it now
+  installs the Bazel + k8s toolchain and warms the cargo cache).
+- [x] `cargo run` removed from README and CLAUDE.md's Dev loop section.
+
+**3c exit evidence:** `just dev` on a clean kind cluster produces a
+healthy stack in <2 min cold (Bazel compile + image wrap + pod start);
+src/ edits roll out in <15s. `bazel test //...` still green;
+`cargo test` still green (source unchanged).
 - [ ] Update `CLAUDE.md` Status table: move Phase 3 rows to **Enforced**.
 
-**Phase 3 exit**: `just dev` builds + deploys to local k8s via Tilt;
-`CLAUDE.md` Status table has zero "Phase 3" rows remaining; the repo is
-ready to be extracted as the canonical Rust LLM-project template.
+**Phase 3 exit (reached 2026-04-22):** `just dev` builds + deploys to
+local k8s via Tilt. `CLAUDE.md` Status table has zero "Phase 3" rows
+remaining. The repo is ready to be extracted as the canonical Rust
+LLM-project template.
 
 ## Deferred / watching
 

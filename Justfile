@@ -1,8 +1,4 @@
 # Command runner entry points. `just --list` shows this, too.
-#
-# Phase 3 replaces this `dev` (cargo run + docker-compose Postgres) with a
-# Bazel + Tilt + local k8s implementation. Same name, different engine.
-# Until then, these are the honest documented inner loop.
 
 _default:
     @just --list
@@ -20,18 +16,12 @@ doctor:
             echo "ok       $1"
         fi
     }
-    check cargo "install via rustup: https://rustup.rs"
+    check cargo "install via rustup: https://rustup.rs (fmt + clippy)"
     check docker "install Docker Engine or Docker Desktop"
     check bazel "install bazelisk: brew install bazelisk (Linux/macOS) or https://github.com/bazelbuild/bazelisk"
     check kind "install kind: brew install kind (or https://kind.sigs.k8s.io/docs/user/quick-start/#installation)"
     check kubectl "install kubectl: brew install kubectl (or https://kubernetes.io/docs/tasks/tools/)"
     check tilt "install tilt: brew install tilt-dev/tap/tilt (or https://docs.tilt.dev/install.html)"
-    if ! docker compose version >/dev/null 2>&1; then
-        echo "MISSING  docker compose plugin"
-        missing=1
-    else
-        echo "ok       docker compose"
-    fi
     if ! command -v rust-analyzer >/dev/null 2>&1; then
         echo "warn     rust-analyzer  (rustup component add rust-analyzer)"
     else
@@ -48,16 +38,11 @@ doctor:
     fi
     echo "ok"
 
-# Bring Postgres up and run the service against it.
+# Creates the kind cluster if missing, then launches Tilt. Bazel builds
+# the binary outside the container; a minimal Dockerfile wraps it.
+# Service on localhost:8080, Postgres on localhost:5432.
+# kind cluster + Tilt. The single inner-loop entry point.
 dev:
-    docker compose up -d
-    DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings cargo run
-
-# Creates the kind cluster if missing, then launches Tilt. Service on
-# localhost:8080, Postgres on localhost:5432. Transitional — Phase 3c
-# renames this to `dev` and retires the cargo/compose path.
-# kind cluster + Tilt. The Phase 3 dev loop (coexists with `just dev`).
-dev-k8s:
     #!/usr/bin/env bash
     set -eu
     if ! kind get clusters 2>/dev/null | grep -q '^static-embedder$'; then
@@ -70,28 +55,51 @@ dev-k8s:
 reset-cluster:
     kind delete cluster --name static-embedder
 
-# Note: fmt/clippy stay on Cargo until rules_rust ships equivalents we
+# fmt + clippy stay on Cargo until rules_rust ships equivalents we
 # trust; tests run under Bazel.
-# cargo fmt + clippy + `bazel test //...`. Matches CI.
+# cargo fmt + clippy + `just test`. Matches CI exactly.
 check:
     cargo fmt -- --check
     cargo clippy --all-targets -- -D warnings
+    just test
+
+# Offline test suite: //tests:api + //tests:properties (fakes, no
+# external dependencies). Cached runs are near-instant.
+# Run the offline test suite via Bazel.
+test:
     bazel test //...
 
-# Live-DB smoke test against docker-compose Postgres.
-test-live:
-    docker compose up -d
+# Both integration tests: //tests:integration_db and
+# //tests:integration_embedder. Expects `just dev` running in another
+# terminal (Tilt forwards Postgres to localhost:5432). First run of
+# the embedder test downloads ~8 MB of weights from HuggingFace.
+# The --config=live group opts in to manual-tagged targets and adds
+# --test_arg=--ignored to flip the Rust test harness on.
+# Run the integration test suite (real DB + real embedder).
+test-integration:
     DATABASE_URL=postgres://embedder:embedder@localhost:5432/embeddings \
-        bazel test //tests:live_db --config=live
+        bazel test //... --config=live
 
 # Regenerate the crate_universe lockfile. Run after editing Cargo.toml.
 bazel-repin:
     CARGO_BAZEL_REPIN=1 bazel fetch @crates//...
 
-# Drop the pgdata volume. Use after migration changes.
-reset-db:
-    docker compose down -v
-    docker compose up -d
+# Mirrors .github/workflows/mutants.yml (same exclusions, same -j 2)
+# so local results compare cleanly to nightly.
+# Install first: `cargo install cargo-mutants --locked`.
+# Run cargo-mutants locally against the domain + ports layer.
+mutants:
+    #!/usr/bin/env bash
+    set -eu
+    if ! command -v cargo-mutants >/dev/null 2>&1; then
+        echo "cargo-mutants not installed. Run: cargo install cargo-mutants --locked"
+        exit 1
+    fi
+    cargo mutants --no-shuffle -j 2 \
+        --exclude src/main.rs \
+        --exclude src/adapters/model2vec_embedder.rs \
+        --exclude src/adapters/pg_vector_repository.rs \
+        --exclude tests/integration_db.rs
 
 # Apply format changes and clippy-fixable lints.
 fix:

@@ -1,7 +1,7 @@
 # -*- mode: python -*-
-# Tilt entry point for the local k8s dev loop (Phase 3b).
+# Tilt entry point for the local k8s dev loop.
 #
-# Run with:  just dev-k8s     (or `tilt up` if the kind cluster is ready)
+# Run with:  just dev       (or `tilt up` if the kind cluster is ready)
 # Stop with: Ctrl+C in the Tilt terminal, then `tilt down`.
 
 # Safety rail: Tilt refuses to touch anything outside these contexts.
@@ -9,26 +9,37 @@
 # is in a weird state.
 allow_k8s_contexts('kind-static-embedder')
 
-# Build the app image from the committed Dockerfile. Docker's layer cache
-# keeps rebuilds reasonable: Cargo.toml/lock changes rarely, so the deps
-# layer is reused; the model-downloader stage is cached via its build
-# args; only src/ edits force a full rebuild of the builder stage.
+# Build the binary via Bazel, then wrap it in the runtime Dockerfile.
 #
-# Note: this path uses `cargo build --release` inside the container, not
-# Bazel. Aligning the container build to Bazel (via rules_oci + a thin
-# runtime Dockerfile) is a 3c optimization once the baseline works.
-docker_build(
-    'static-embedder',
-    '.',
-    dockerfile='Dockerfile',
-    # Only files in these paths invalidate the image build. Everything
-    # else (tests/, k8s/, docs) is ignored.
-    only=[
-        'Cargo.toml',
-        'Cargo.lock',
-        'src',
-        'migrations',
-        'static',
+# This is the "Bazel is the engine" path: cargo compile happens via
+# `bazel build //:static-embedder` outside the container, the binary
+# lands in `bazel-bin/static-embedder`, we stage it next to the
+# Dockerfile, and docker build produces the final image. Incremental
+# rebuilds hit Bazel's cache — if src/ didn't change, the binary
+# rebuild is ~1s and only the tail end of the Docker build runs.
+#
+# The $EXPECTED_REF env var is set by Tilt; docker build tags the
+# image with it and Tilt handles loading into the kind cluster.
+custom_build(
+    ref='static-embedder',
+    command='''
+        set -eu
+        bazel build //:static-embedder
+        STAGE=$(mktemp -d)
+        trap "rm -rf $STAGE" EXIT
+        cp -L bazel-bin/static-embedder "$STAGE/static-embedder"
+        cp Dockerfile "$STAGE/Dockerfile"
+        docker build -t "$EXPECTED_REF" "$STAGE"
+    ''',
+    deps=[
+        './src',
+        './migrations',
+        './Cargo.toml',
+        './Cargo.lock',
+        './BUILD.bazel',
+        './MODULE.bazel',
+        './MODULE.bazel.lock',
+        './Dockerfile',
     ],
 )
 

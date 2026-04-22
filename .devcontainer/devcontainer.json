@@ -21,10 +21,9 @@
     "ENABLE_LSP_TOOL": "1"
   },
   // Install the Phase 3 toolchain (bazelisk + kind + kubectl + tilt)
-  // on first container create, warm the cargo cache, and bring up
-  // docker-compose Postgres so `just dev` works immediately. `just
-  // dev-k8s` bootstraps its own kind cluster lazily.
-  "postCreateCommand": "brew install bazelisk kind kubectl tilt-dev/tap/tilt && docker compose up -d && cargo fetch",
+  // on first container create, then warm the cargo cache. `just dev`
+  // creates the kind cluster lazily on first run.
+  "postCreateCommand": "brew install bazelisk kind kubectl tilt-dev/tap/tilt && cargo fetch",
   "customizations": {
     "vscode": {
       "extensions": [
